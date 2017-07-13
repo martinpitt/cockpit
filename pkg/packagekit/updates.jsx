@@ -23,6 +23,9 @@ var moment = require("moment");
 var Tooltip = require("cockpit-components-tooltip.jsx").Tooltip;
 require("listing.less");
 
+// for interactively testing layout changes with large updates
+//import { injectMockUpdates } from "./mock-updates.es6";
+
 const _ = cockpit.gettext;
 
 // "available" heading is built dynamically
@@ -500,6 +503,8 @@ class OsUpdates extends React.Component {
 
                 // when GetUpdates() finished, get the details for all packages
                 Finished: () => {
+                    // for interactively testing layout changes with large updates; never commit this!
+                    //injectMockUpdates(updates);
                     let pkg_ids = Object.keys(updates);
                     if (pkg_ids.length) {
                         this.setState({ updates: updates, cockpitUpdate: cockpitUpdate });
