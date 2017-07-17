@@ -59,7 +59,7 @@ tr.security.listing-ct-item {
     }
 }
 
-@media screen and (min-width: 800px) {
+@media screen and (min-width: 641px) {
     tr.listing-ct-item td.changelog {
         width: 80ex;
         white-space: pre-line;
@@ -70,7 +70,7 @@ tr.security.listing-ct-item {
     }
 }
 
-@media screen and (min-width: 800px) and (max-width: 1400px) {
+@media screen and (min-width: 641px) and (max-width: 1150px) {
     .listing-ct-item th {
         min-width: 30%;
     }
@@ -87,7 +87,7 @@ tr.security.listing-ct-item {
     }
 }
 
-@media screen and (min-width: 1401px) {
+@media screen and (min-width: 1151px) {
     .listing-ct-item th {
         /*
         min-width: 30%;
