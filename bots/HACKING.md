@@ -1,3 +1,5 @@
+TEST CHANGE that changes bots/
+
 # Hacking on the Cockpit Bots
 
 These are automated bots and testing that works on the Cockpit project. This
