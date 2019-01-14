@@ -658,9 +658,9 @@ function setup() {
 
 /* Hook this in when loaded */
 jQuery(function() {
-    var placeholder = jQuery("#system-info-domain");
+    var placeholder = jQuery("#server");
     if (placeholder.length) {
-        placeholder.find(".button-location").append(setup());
+        placeholder.find(".domain-button-location").append(setup());
         placeholder.removeAttr('hidden');
     }
 });
