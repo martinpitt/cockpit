@@ -35,7 +35,7 @@ body {
     padding: 0;
 }
 
-@media screen and (min-width: 40rem) {
+@media screen and (min-width: 640px) {
     /* Lay out overview in a grid, if there's enough width */
     .server-overview {
         grid-template-areas: "motd motd" "info graphs";
