@@ -205,10 +205,16 @@ export class History extends React.Component {
                     <tr className="listing-ct-item" onClick={ () => this.onExpand(index) } >
                         { details ? <td className="listing-ct-toggle"><i className="fa fa-fw" /></td> : <td /> }
                         <th>{time}</th>
-                        <td className="history-pkgcount">{pkgcount}</td>
-                        <td className="history-snapsize listing-ct-actions">{snapsize}</td>
-                        <td className="history-rollback listing-ct-actions">{rollback_action}</td>
-                        <td className="history-kebab listing-ct-actions">{kebab_action}</td>
+                        <td className="listing-ct-meta">
+                            <div className="history-pkgcount listing-ct-info">{pkgcount}</div>
+                            <div className="history-snapsize listing-ct-info">{snapsize}</div>
+                            <div className="history-rollback listing-ct-action">
+                                {rollback_action}
+                                <span className="history-kebab">
+                                    {kebab_action}
+                                </span>
+                            </div>
+                        </td>
                     </tr>
                     {details}
                 </tbody>);
