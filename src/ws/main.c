@@ -207,6 +207,7 @@ main (int argc,
     }
 
   cockpit_web_server_set_redirect_tls (server, !cockpit_conf_bool ("WebService", "AllowUnencrypted", FALSE));
+  cockpit_web_server_set_request_client_cert (server, cockpit_conf_bool ("WebService", "UnsafeClientCertAuthentication", FALSE));
 
   if (cockpit_conf_string ("WebService", "UrlRoot"))
     {

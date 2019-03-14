@@ -40,6 +40,10 @@
 %define build_basic 1
 # build optional extensions like cockpit-docker
 %define build_optional 1
+# build cert-session package only for CI; not for RHEL 7
+%if %{defined wip} && 0%{?rhel} == 0 || 0%{?rhel} >= 8
+%define build_cert_session 1
+%endif
 
 # cockpit's firewall service definition moved to firewalld
 %if 0%{?fedora} >= 29 || 0%{?rhel} >= 8
@@ -350,6 +354,11 @@ rm -r %{buildroot}/%{_libexecdir}/cockpit-pcp %{buildroot}/%{_localstatedir}/lib
 rm -f %{buildroot}/%{_libexecdir}/cockpit-kube-auth %{buildroot}/%{_libexecdir}/cockpit-kube-launch %{buildroot}/%{_libexecdir}/cockpit-stub
 # files from -machines
 rm -f %{buildroot}/%{_prefix}/share/metainfo/org.cockpit-project.cockpit-machines.metainfo.xml
+%endif
+
+%if %{defined build_cert_session}
+%else
+rm -f %{buildroot}/%{_libexecdir}/cockpit-cert-session
 %endif
 
 sed -i "s|%{buildroot}||" *.list
@@ -846,6 +855,32 @@ via PackageKit.
 %files -n cockpit-packagekit -f packagekit.list
 
 %endif # build optional extension packages
+
+# -------------------------------------------------------------------------------
+# Tech preview: cert-session
+
+%if 0%{?build_cert_session}
+
+%package -n cockpit-ws-cert-session
+Summary: Cockpit authentication with client-side TLS certificates
+Requires: cockpit-ws > 189
+Requires: sssd-dbus
+
+%description -n cockpit-ws-cert-session
+Extends Cockpit's Web Server to provide client-side TLS certificate
+authentication. The primary use case is to use smart cards and FreeIPA/IdM user
+certificates <https://www.freeipa.org/page/V4/User_Certificates>.
+sssd maps a certificate to a user name.
+
+WARNING: This is a tech preview and currently unsafe: It trusts cockpit-ws to
+do the TLS termination, so if some remote attacker is able to find an exploit
+and run arbitrary code in the web server, the credentials can be forged.
+
+%files -n cockpit-ws-cert-session
+%attr(4750, root, cockpit-ws) %{_libexecdir}/cockpit-cert-session
+%{_libdir}/security/pam_cockpit_cert.so
+
+%endif # build cert-session tech preview package
 
 # The changelog is automatically generated and merged
 %changelog

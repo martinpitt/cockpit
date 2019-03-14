@@ -67,6 +67,7 @@ depcomp
 /test/run
 /test/kdc
 /cockpit-askpass
+/cockpit-cert-session
 /cockpit-session
 /cockpit-ssh
 /cockpit-stub

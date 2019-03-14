@@ -129,6 +129,31 @@ string response if there is no available key.
 }
 ```
 
+Client certificate authentication
+---------------------------------
+When a machine is joined to an Identity Management realm which has
+[client-side user certificates](https://www.freeipa.org/page/V4/User_Certificates)
+set up, then these can be enabled for authentication to Cockpit by setting this
+option in cockpit.conf:
+
+```
+[WebService]
+UnsafeClientCertAuthentication = yes
+```
+
+This uses the `tls-cert` authentication scheme, which is handled by the
+`cockpit-cert-session` authentication command.
+
+> **WARNING:** This trusts Cockpit's unprivileged web server (`cockpit-ws`) to
+> validate that the remote end really owns the corresponding private key. Other
+> authentication methods do the validation of credentials in a privileged
+> process, so that a compromised web server cannot tamper with the credentials.
+> This will be improved in the future, until then use this feature at your own
+> risk!
+
+When enabling this mode, other authentication types commonly get disabled. See
+the next section for details.
+
 Actions
 -------
 

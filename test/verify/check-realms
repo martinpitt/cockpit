@@ -20,6 +20,7 @@
 
 import re
 import time
+import os
 
 import parent
 
@@ -378,6 +379,176 @@ class TestRealms(MachineCase):
         b.set_val(self.op_admin_password, "foobarfoo")
         b.click(".realms-op-apply")
         b.wait_text(".realms-op-message", "Joining this domain is not supported")
+
+    @skipImage("not supported in RHEL/CentOS 7", "rhel-7-6-distropkg", "rhel-7-6", "rhel-7-7", "centos-7")
+    @skipImage("not yet shipped while it's tech preview", "debian-testing", "ubuntu-1804", "ubuntu-stable")
+    @skipImage("added in PR #11421", "rhel-8-0-distropkg")
+    def testClientCertAuthentication(self):
+        m = self.machine
+
+        ipa_machine = self.machines['ipa']
+        # need to wait for IPA to start up
+        ipa_machine.execute("while ! echo foobarfoo | kinit -f admin; do sleep 5; done", timeout=300)
+        ipa_machine.execute('export LC_ALL=C.UTF-8 && while ! ipa user-find >/dev/null; do sleep 5; done', timeout=300)
+        # set up an IPA user with a TLS certificate; can't use "admin" due to https://pagure.io/freeipa/issue/6683
+        ipa_machine.execute('''
+CERTUSER=jane
+ipa user-add --first=$CERTUSER --last="developer" $CERTUSER
+printf 'foobar\\nfoobar\\n' | ipa user-mod --password $CERTUSER
+ipa user-mod --password-expiration='2030-01-01T00:00:00Z' $CERTUSER
+openssl req -x509 -newkey rsa:2048 -days 365 -nodes -keyout ${CERTUSER}.key -out ${CERTUSER}.pem -subj "/CN=$CERTUSER"
+openssl x509 -outform der -in ${CERTUSER}.pem -out ${CERTUSER}.der
+ipa user-add-cert $CERTUSER --certificate="$(base64 ${CERTUSER}.der)"
+# for browser import with manual tests
+openssl pkcs12 -export -password pass:foo -in ${CERTUSER}.pem -inkey ${CERTUSER}.key -out ${CERTUSER}.p12
+''')
+        jane_pem = os.path.join(self.tmpdir, "jane.pem")
+        jane_key = os.path.join(self.tmpdir, "jane.key")
+        ipa_machine.download("jane.key", jane_key)
+        ipa_machine.download("jane.pem", jane_pem)
+        m.upload([jane_key, jane_pem], "/var/tmp")
+
+        # On Debian/Ubuntu D-Bus activation of ifp is disabled, enable it manually; see https://bugs.debian.org/925026
+        static_ifp_conf = m.image in ["debian-testing", "ubuntu-1804", "ubuntu-stable"]
+        if static_ifp_conf:
+            m.write("/etc/sssd/conf.d/ifp.conf", "[sssd]\nservices = nss, sudo, pam, ssh, ifp\n")
+            m.execute("chmod 600 /etc/sssd/conf.d/ifp.conf")
+
+        m.execute("hostnamectl set-hostname x0.cockpit.lan")
+
+        # Wait for DNS to work as expected.
+        # https://bugzilla.redhat.com/show_bug.cgi?id=1071356#c11
+        wait(lambda: m.execute("nslookup -type=SRV _ldap._tcp.cockpit.lan"))
+
+        # join domain, wait until it works
+        m.execute("printf '[cockpit.lan]\\nfully-qualified-names = no\\n'  >> /etc/realmd.conf")
+        m.execute("echo foobarfoo | realm join -vU admin cockpit.lan")
+        m.execute('while ! id jane; do sleep 5; done', timeout=300)
+
+        # ensure sssd certificate lookup works
+        user_obj = m.execute('busctl call org.freedesktop.sssd.infopipe /org/freedesktop/sssd/infopipe/Users '
+                             'org.freedesktop.sssd.infopipe.Users FindByCertificate s -- '
+                             '''"$(cat /var/tmp/jane.pem)" | sed 's/^o "//; s/"$//' ''')
+        self.assertEqual(m.execute('busctl get-property org.freedesktop.sssd.infopipe ' + user_obj.strip() +
+                                   ' org.freedesktop.sssd.infopipe.Users.User name').strip(),
+                         's "jane"')
+
+        # These tests have to be run with curl, as chromium-headless does not support selecting/handling client-side
+        # certificates; it just rejects cert requests. For interactive tests, grab jane.p12 from the ipa VM and import
+        # it into the browser.
+
+        def do_test(authopts, expected, not_expected=[], session_leader=None):
+            m.start_cockpit(tls=True)
+            output = m.execute(['curl', '-ksS', '-D-'] + authopts + ['https://localhost:9090/cockpit/login'])
+            for s in expected:
+                self.assertIn(s, output)
+            for s in not_expected:
+                self.assertNotIn(s, output)
+
+            if session_leader:
+                out = m.execute('loginctl show-user --property=Sessions jane')
+                sessions = out.split('=')[1].split()
+                self.assertEqual(len(sessions), 1)
+                out = m.execute('loginctl session-status ' + sessions[0])
+                self.assertIn(session_leader, out)
+                self.assertIn('cockpit-bridge', out)
+                self.assertIn('cockpit; type web', out)
+                # sessions time out after 10s, but let's not wait for that
+                m.execute('loginctl terminate-session ' + sessions[0])
+
+            m.stop_cockpit()
+
+        # HACK: cockpit-cert-session needs SELinux profile update
+        # https://bugzilla.redhat.com/show_bug.cgi?id=1690444
+        # https://bugzilla.redhat.com/show_bug.cgi?id=1698405
+        m.execute("""set -ex
+if type selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+    semanage fcontext -a /usr/libexec/cockpit-cert-session -t cockpit_session_exec_t
+    restorecon /usr/libexec/cockpit-cert-session
+    cat <<EOF > /tmp/local.te
+module local 1.0;
+require { type cockpit_session_t; type sssd_t; type cockpit_ws_t; type cert_t; type tmpfs_t; class dbus send_msg; class file { read write map getattr }; }
+allow cockpit_session_t tmpfs_t:file { read write map getattr };
+allow cockpit_session_t sssd_t:dbus send_msg;
+allow sssd_t cockpit_session_t:dbus send_msg;
+allow cockpit_ws_t tmpfs_t:file { read write map getattr };
+dontaudit cockpit_ws_t cert_t:file { read map };
+EOF
+
+    checkmodule -M -m -o /tmp/local.mod /tmp/local.te
+    semodule_package -o /tmp/local.pp -m /tmp/local.mod
+    semodule -i /tmp/local.pp
+fi
+""")
+
+        # cert auth should not be enabled by default
+        do_test(['--cert', '/var/tmp/jane.pem', '--key', '/var/tmp/jane.key'],
+                ["HTTP/1.1 401 Authentication required", '"authorize"'])
+        # password auth should work
+        do_test(['-u', 'jane:foobar'],
+                ['HTTP/1.1 200 OK', '"csrf-token"'],
+                session_leader='cockpit-session')
+
+        # enable cert based auth
+        m.execute("printf '[WebService]\nUnsafeClientCertAuthentication = true\n' >> /etc/cockpit/cockpit.conf")
+        # cert auth should work now
+        do_test(['--cert', '/var/tmp/jane.pem', '--key', '/var/tmp/jane.key'],
+                ['HTTP/1.1 200 OK', '"csrf-token"'],
+                session_leader='cockpit-cert-session')
+        # password auth, too
+        do_test(['-u', 'jane:foobar'],
+                ['HTTP/1.1 200 OK', '"csrf-token"'],
+                session_leader='cockpit-session')
+        # cert auth should go through PAM stack and re-create home dir
+        home_dir = m.execute("getent passwd jane | cut -d: -f6").strip()
+        m.execute("rm -r " + home_dir)
+        do_test(['--cert', '/var/tmp/jane.pem', '--key', '/var/tmp/jane.key'],
+                ['HTTP/1.1 200 OK', '"csrf-token"'],
+                session_leader='cockpit-cert-session')
+        m.execute('test -f %s/.bashrc' % home_dir)
+
+        # another certificate gets rejected
+        m.execute("openssl req -x509 -newkey rsa:2048 -days 365 -nodes -keyout /tmp/jane2.key -out /tmp/jane2.pem -subj /CN=jane")
+        do_test(['--cert', '/tmp/jane2.pem', '--key', '/tmp/jane2.key'],
+                ["HTTP/1.1 401 Authentication failed", '<h1>Authentication failed</h1>'],
+                not_expected=["crsf-token"])
+
+        # check expired certificate
+        m.execute("openssl req -new -key /var/tmp/jane.key -out /tmp/jane.csr -subj /CN=jane")
+        m.execute("openssl x509 -in /tmp/jane.csr -out /var/tmp/jane-exp.pem -req -signkey /var/tmp/jane.key -days -1")
+        if m.image not in ["rhel-7-6", "rhel-7-7", "centos-7"]:
+            m.start_cockpit(tls=True)
+            m.execute('! curl -ksS --cert /var/tmp/jane-exp.pem --key /var/tmp/jane.key https://localhost:9090/cockpit/login')
+            m.stop_cockpit()
+            self.allow_journal_messages('.*Unacceptable TLS certificate')
+            self.allow_journal_messages('Rejecting bad client certificate')
+        else:
+            # on RHEL/CentOS-7, glib-networking/GnuTLS don't check for end date in the past, so just ensure it's invalid
+            do_test(['--cert', '/var/tmp/jane-exp.pem', '--key', '/var/tmp/jane.key'],
+                    ["HTTP/1.1 401 Authentication failed", '<h1>Authentication failed</h1>'],
+                    not_expected=["crsf-token"])
+
+        # disallow password auth
+        m.execute("printf '[Basic]\naction = none\n' >> /etc/cockpit/cockpit.conf")
+        do_test(['--cert', '/var/tmp/jane.pem', '--key', '/var/tmp/jane.key'],
+                ['HTTP/1.1 200 OK', '"csrf-token"'],
+                session_leader='cockpit-cert-session')
+        do_test(['-u', 'jane:foobar'],
+                ['HTTP/1.1 401 Authentication disabled', '<h1>Authentication disabled</h1>'],
+                not_expected=["crsf-token"])
+
+        # sssd-dbus not available
+        if static_ifp_conf:
+            m.execute("mv /etc/sssd/conf.d/ifp.conf /etc/sssd/conf.d/ifp.conf.disabled && systemctl restart sssd")
+        else:
+            m.execute("systemctl mask sssd-ifp && systemctl stop sssd-ifp")
+        do_test(['--cert', '/var/tmp/jane.pem', '--key', '/var/tmp/jane.key'],
+                ["HTTP/1.1 401 Authentication failed", '<h1>Authentication failed</h1>'],
+                not_expected=["crsf-token"])
+        if static_ifp_conf:
+            m.execute("mv /etc/sssd/conf.d/ifp.conf.disabled /etc/sssd/conf.d/ifp.conf && systemctl restart sssd")
+        else:
+            m.execute("systemctl unmask sssd-ifp")
 
 
 JOIN_SCRIPT = """

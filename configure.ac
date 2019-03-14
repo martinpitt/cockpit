@@ -113,6 +113,16 @@ COCKPIT_SESSION_LIBS="$KRB5_LIBS"
 AC_SUBST(COCKPIT_SESSION_CFLAGS)
 AC_SUBST(COCKPIT_SESSION_LIBS)
 
+COCKPIT_CERT_SESSION_CFLAGS="$COCKPIT_CFLAGS"
+COCKPIT_CERT_SESSION_LIBS=""
+AC_SUBST(COCKPIT_CERT_SESSION_CFLAGS)
+AC_SUBST(COCKPIT_CERT_SESSION_LIBS)
+
+PAM_COCKPIT_CERT_CFLAGS="$COCKPIT_CFLAGS $LIBSYSTEMD_CFLAGS"
+PAM_COCKPIT_CERT_LIBS="$LIBSYSTEMD_LIBS"
+AC_SUBST(PAM_COCKPIT_CERT_CFLAGS)
+AC_SUBST(PAM_COCKPIT_CERT_LIBS)
+
 COCKPIT_WS_CFLAGS="$COCKPIT_CFLAGS"
 COCKPIT_WS_LIBS="$COCKPIT_LIBS"
 AC_SUBST(COCKPIT_WS_CFLAGS)
@@ -159,6 +169,7 @@ AC_CHECK_LIB(pam, pam_open_session, [ true ],
 )
 PAM_LIBS="-lpam"
 COCKPIT_SESSION_LIBS="$COCKPIT_SESSION_LIBS $PAM_LIBS"
+COCKPIT_CERT_SESSION_LIBS="$COCKPIT_CERT_SESSION_LIBS $PAM_LIBS"
 COCKPIT_WS_LIBS="$COCKPIT_WS_LIBS $PAM_LIBS"
 
 # pam module directory
@@ -222,6 +233,13 @@ AC_CHECK_LIB(gssapi_krb5, gss_store_cred, [ true ],
 # systemd
 AC_ARG_WITH([systemdunitdir], [AC_HELP_STRING([--with-systemdunitdir=DIR],
                                               [directory to install systemd unit files in])])
+
+# pam_cockpit_cert requires sd-bus
+AC_CHECK_HEADER([systemd/sd-bus.h], [enable_cert_session=yes], [enable_cert_session=no])
+if test "$enable_cert_session" = "yes"; then
+    AC_DEFINE_UNQUOTED(ENABLE_CERT_SESSION, 1, [Build client certificate authentication support])
+fi
+AM_CONDITIONAL([ENABLE_CERT_SESSION], [test "$enable_cert_session" = "yes"])
 
 if test ! -z "$with_systemdunitdir"; then
   systemdunitdir=$with_systemdunitdir
@@ -598,7 +616,8 @@ echo "
         With coverage:              ${enable_coverage}
         With address sanitizer:     ${asan_status}
         With PCP:                   ${enable_pcp}
-	Branding:                   ${BRAND}
+        With cert-session:          ${enable_cert_session}
+        Branding:                   ${BRAND}
 
         cockpit-ssh:                ${enable_ssh}
         Supports key auth:          ${key_auth}

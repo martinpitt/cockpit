@@ -132,6 +132,30 @@ cockpit_session_SOURCES = \
 	$(NULL)
 cockpit_session_LDADD = $(COCKPIT_SESSION_LIBS)
 
+if ENABLE_CERT_SESSION
+
+libexec_PROGRAMS += cockpit-cert-session
+
+cockpit_cert_session_SOURCES = \
+	src/common/cockpitauthorize.c \
+	src/common/cockpitauthorize.h \
+	src/common/cockpitbase64.c \
+	src/common/cockpitbase64.h \
+	src/common/cockpitframe.c \
+	src/common/cockpitframe.h \
+	src/common/cockpitmemory.c \
+	src/common/cockpitmemory.h \
+	src/ws/session-utils.c \
+	src/ws/session-utils.h \
+	src/ws/cert-session.c \
+	$(NULL)
+cockpit_cert_session_CFLAGS = \
+	$(COCKPIT_CERT_SESSION_CFLAGS) \
+	$(NULL)
+cockpit_cert_session_LDADD = $(COCKPIT_CERT_SESSION_LIBS)
+
+endif
+
 cockpit_ws_SOURCES =					\
 	src/ws/main.c					\
 	$(NULL)
@@ -192,10 +216,30 @@ $(nodist_tempconf_DATA): $(tempconf_in)
 	$(SUBST_RULE)
 
 # If running cockpit-ws as a non-standard user, we also set up
-# cockpit-session to be setuid root, but only runnable by cockpit-session
+# cockpit-{,cert-}session to be setuid root, but only runnable by cockpit-session
 install-exec-hook::
-	chown -f root:$(COCKPIT_GROUP) $(DESTDIR)$(libexecdir)/cockpit-session || true
-	test "$(COCKPIT_USER)" != "root" && chmod -f 4750 $(DESTDIR)$(libexecdir)/cockpit-session || true
+	chown -f root:$(COCKPIT_GROUP) $(DESTDIR)$(libexecdir)/cockpit-session $(DESTDIR)$(libexecdir)/cockpit-cert-session || true
+	test "$(COCKPIT_USER)" != "root" && chmod -f 4750 $(DESTDIR)$(libexecdir)/cockpit-session $(DESTDIR)$(libexecdir)/cockpit-cert-session || true
+
+if ENABLE_CERT_SESSION
+
+noinst_PROGRAMS += pam_cockpit_cert.so
+pam_cockpit_cert_so_SOURCES = src/ws/pam_cockpit_cert.c
+pam_cockpit_cert.so$(EXEEXT): $(pam_cockpit_cert_so_SOURCES)
+	$(AM_V_CCLD) $(CC) -fPIC -shared $(PAM_COCKPIT_CERT_CFLAGS) $(CFLAGS) -I$(builddir) -o $@ $^ $(LDFLAGS) $(PAM_COCKPIT_CERT_LIBS)
+
+CLEANFILES += pam_cockpit_cert.so
+
+endif
+
+install-exec-local::
+if ENABLE_CERT_SESSION
+	$(MKDIR_P) $(DESTDIR)$(pamdir)
+	$(INSTALL) pam_cockpit_cert.so $(DESTDIR)$(pamdir)
+endif
+
+uninstall-local::
+	$(RM) -f $(DESTDIR)$(pamdir)/pam_cockpit_cert.so
 
 libexec_SCRIPTS = cockpit-desktop
 

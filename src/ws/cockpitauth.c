@@ -54,6 +54,9 @@
 const gchar *cockpit_ws_session_program =
     PACKAGE_LIBEXEC_DIR "/cockpit-session";
 
+const gchar *cockpit_ws_cert_session_program =
+    PACKAGE_LIBEXEC_DIR "/cockpit-cert-session";
+
 const gchar *cockpit_ws_ssh_program =
     PACKAGE_LIBEXEC_DIR "/cockpit-ssh";
 
@@ -1081,6 +1084,11 @@ cockpit_session_launch (CockpitAuth *self,
 
       program_default = cockpit_ws_ssh_program;
     }
+  else if (g_strcmp0 (type, "tls-cert") == 0 &&
+           cockpit_conf_bool ("WebService", "UnsafeClientCertAuthentication", FALSE))
+    {
+      program_default = cockpit_ws_cert_session_program;
+    }
   else
     {
       program_default = cockpit_ws_session_program;
@@ -1403,12 +1411,43 @@ cockpit_auth_login_async (CockpitAuth *self,
     }
 
   application = cockpit_auth_parse_application (path, NULL);
-  authorization = cockpit_auth_steal_authorization (headers, connection, &type, &conversation);
 
-  if (!application || !authorization)
+#ifdef ENABLE_CERT_SESSION
+  /* If the client sends a TLS certificate, treat this as a definitive login type, and don't just
+   * silently fall back to other types */
+  GTlsCertificate* peer_certificate = NULL;
+  if (G_IS_TLS_CONNECTION (connection))
+    peer_certificate = g_tls_connection_get_peer_certificate (G_TLS_CONNECTION (connection));
+  if (peer_certificate)
+    {
+      gchar *pem = NULL;
+      g_object_get (peer_certificate, "certificate-pem", &pem, NULL);
+      g_assert (pem);
+
+      g_debug ("TLS connection has peer certificate for authorization, using tls-cert auth type");
+      type = g_strdup ("tls-cert");
+      authorization = g_strdup_printf ("%s %s", type, pem);
+      g_free (pem);
+    }
+  else
+#endif
+    {
+      g_debug ("no TLS connection or peer certificate");
+      authorization = cockpit_auth_steal_authorization (headers, connection, &type, &conversation);
+
+      if (!authorization)
+        {
+          g_simple_async_result_set_error (result, COCKPIT_ERROR, COCKPIT_ERROR_AUTHENTICATION_FAILED,
+                                           "Authentication required");
+          g_simple_async_result_complete_in_idle (result);
+          goto out;
+        }
+    }
+
+  if (!application)
     {
       g_simple_async_result_set_error (result, COCKPIT_ERROR, COCKPIT_ERROR_AUTHENTICATION_FAILED,
-                                       "Authentication required");
+                                       "Application required");
       g_simple_async_result_complete_in_idle (result);
       goto out;
     }
