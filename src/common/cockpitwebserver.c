@@ -36,9 +36,6 @@
 
 #include <systemd/sd-daemon.h>
 
-/* Used during testing */
-gboolean cockpit_webserver_want_certificate = FALSE;
-
 guint cockpit_webserver_request_timeout = 30;
 gsize cockpit_webserver_request_maximum = 4096;
 
@@ -56,6 +53,7 @@ struct _CockpitWebServer {
   gint request_timeout;
   gint request_max;
   gboolean redirect_tls;
+  gboolean request_client_cert;
 
   GSocketService *socket_service;
   GMainContext *main_context;
@@ -521,6 +519,16 @@ cockpit_web_server_get_redirect_tls (CockpitWebServer *self)
 
   return self->redirect_tls;
 }
+
+void
+cockpit_web_server_set_request_client_cert (CockpitWebServer *self,
+                                            gboolean          enable)
+{
+  g_return_if_fail (COCKPIT_IS_WEB_SERVER (self));
+
+  self->request_client_cert = enable;
+}
+
 
 GHashTable *
 cockpit_web_server_new_table (void)
@@ -1085,8 +1093,13 @@ on_accept_certificate (GTlsConnection *conn,
                        GTlsCertificateFlags errors,
                        gpointer user_data)
 {
-  /* Only used during testing */
-  g_assert (cockpit_webserver_want_certificate == TRUE);
+  /* Only accept unknown CAs, e. g. for passing on the certificate to sssd */
+  if (errors != 0 && errors != G_TLS_CERTIFICATE_UNKNOWN_CA) {
+     g_message ("Rejecting bad client certificate");
+     return FALSE;
+  }
+
+  g_debug ("Accepted client certificate");
   return TRUE;
 }
 
@@ -1169,7 +1182,7 @@ on_socket_input (GSocket *socket,
           return FALSE;
         }
 
-      if (cockpit_webserver_want_certificate)
+      if (request->web_server->request_client_cert)
         {
           g_object_set (tls_stream, "authentication-mode", G_TLS_AUTHENTICATION_REQUESTED, NULL);
           g_signal_connect (tls_stream, "accept-certificate", G_CALLBACK (on_accept_certificate), NULL);

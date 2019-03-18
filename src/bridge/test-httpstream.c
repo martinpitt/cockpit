@@ -488,6 +488,7 @@ setup_tls (TestTls *test,
 
   test->web_server = cockpit_web_server_new (NULL, 0, test->certificate, NULL, &error);
   g_assert_no_error (error);
+  cockpit_web_server_set_request_client_cert (test->web_server, TRUE);
 
   test->port = cockpit_web_server_get_port (test->web_server);
   g_signal_connect (test->web_server, "handle-resource::/test", G_CALLBACK (handle_test), test);
@@ -851,17 +852,12 @@ test_tls_authority_bad (TestTls *test,
   g_free (expected_json);
 }
 
-/* Declared in cockpitwebserver.c */
-extern gboolean cockpit_webserver_want_certificate;
-
 int
 main (int argc,
       char *argv[])
 {
   char *ip = non_local_ip ();
   int result;
-
-  cockpit_webserver_want_certificate = TRUE;
 
   cockpit_test_init (&argc, &argv);
 

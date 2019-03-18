@@ -64,6 +64,9 @@ void               cockpit_web_server_set_redirect_tls     (CockpitWebServer *se
 
 gboolean           cockpit_web_server_get_redirect_tls     (CockpitWebServer *self);
 
+void               cockpit_web_server_set_request_client_cert (CockpitWebServer *self,
+                                                               gboolean          enable);
+
 G_END_DECLS
 
 #endif /* __COCKPIT_WEB_SERVER_H__ */
