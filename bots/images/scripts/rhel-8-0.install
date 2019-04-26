@@ -28,3 +28,7 @@ EOF
 checkmodule -M -m -o /tmp/local.mod /tmp/local.te
 semodule_package -o /tmp/local.pp -m /tmp/local.mod
 semodule -i /tmp/local.pp
+
+# DEMO HACK: sudo askpass for password "foobar"
+printf '#!/bin/sh\necho foobar\n' > /usr/local/bin/sudo-askpass
+chmod 755 /usr/local/bin/sudo-askpass

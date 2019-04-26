@@ -397,6 +397,7 @@ CERTUSER=jane
 ipa user-add --first=$CERTUSER --last="developer" $CERTUSER
 printf 'foobar\\nfoobar\\n' | ipa user-mod --password $CERTUSER
 ipa user-mod --password-expiration='2030-01-01T00:00:00Z' $CERTUSER
+ipa user-mod --shell=/bin/bash $CERTUSER
 ipa group-add-member admins --users=jane
 openssl req -x509 -newkey rsa:2048 -days 365 -nodes -keyout ${CERTUSER}.key -out ${CERTUSER}.pem -subj "/CN=$CERTUSER"
 openssl x509 -outform der -in ${CERTUSER}.pem -out ${CERTUSER}.der
@@ -437,6 +438,10 @@ openssl pkcs12 -export -password pass:foo -in ${CERTUSER}.pem -inkey ${CERTUSER}
                          's "jane"')
 
         m.execute("systemctl enable --now cockpit.socket")
+
+        # disable root terminal initially
+        m.execute("cp /usr/share/cockpit/systemd/manifest.json /usr/share/cockpit/systemd/manifest.json.orig")
+        m.execute("sed -i '/root-terminal/d' /usr/share/cockpit/systemd/manifest.json")
 
         print("""
 
@@ -505,6 +510,26 @@ resembles the Putty-CAC solution?
 """)
         sit()
         subprocess.call(["firefox", "--private-window", "https://%s:%s/cockpit/@localhost/system/terminal.html" % (m.web_address, m.web_port)])
+        sit()
+
+        m.execute("mv /usr/share/cockpit/systemd/manifest.json.orig /usr/share/cockpit/systemd/manifest.json")
+        print("""
+
+-----------------------
+Step 4: Certificate based login with separate Root Terminal
+
+Same setup as initially, but with an extra "Root Terminal". This could grow an
+extra button for acquiring credentials, or just ask for them when you click on
+the page. The demo doesn't doo this, and just fakes around that by giving sudo
+a hardcoded "foobar" passsword.
+
+This is the most intrusive option, as we don't want to ship this by default.
+
+- Press Enter to open private browser window
+- When done, close browser again and press Enter
+""")
+        sit()
+        subprocess.call(["firefox", "--private-window", "https://%s:%s" % (m.web_address, m.web_port)])
         sit()
 
         print("""

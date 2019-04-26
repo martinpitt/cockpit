@@ -133,6 +133,10 @@ var info = {
             "systemd/terminal.jsx",
             "systemd/terminal.css",
         ],
+        "systemd/root-terminal": [
+            "systemd/root-terminal.jsx",
+            "systemd/terminal.css",
+        ],
         "systemd/hwinfo": [
             "systemd/hwinfo.jsx",
             "systemd/hwinfo.css",
@@ -240,6 +244,7 @@ var info = {
         "systemd/logs.html",
         "systemd/services.html",
         "systemd/terminal.html",
+        "systemd/root-terminal.html",
         "systemd/hwinfo.html",
 
         "users/index.html",
