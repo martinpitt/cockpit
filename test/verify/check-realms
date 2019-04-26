@@ -475,7 +475,7 @@ This got enabled in /etc/cockpit/cockpit.conf through
     UnsafeClientCertAuthentication = true
 
 - Import jane's certificate into Firefox:
-  Preferences → Privacy & Security → View Certificates… → Import…
+  Preferences → Privacy & Security → View Certificates… → "Your Certificates" tab → Import…
   and import /tmp/jane.p12 ; certificate encryption password is "foo"
 - Then press Enter to open private browser window
 """)
