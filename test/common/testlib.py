@@ -773,9 +773,6 @@ class MachineCase(unittest.TestCase):
         self.addCleanup(intercept)
 
     def tearDown(self):
-        if self.checkSuccess() and self.machine.ssh_reachable:
-            self.check_journal_messages()
-            self.check_browser_errors()
         shutil.rmtree(self.tmpdir)
 
     def login_and_go(self, path=None, user=None, host=None, authorized=True, tls=False):

@@ -7,3 +7,24 @@ set -e
 rpm --erase --nodeps --verbose cockpit cockpit-ws cockpit-bridge cockpit-system
 
 /var/lib/testvm/fedora.install --rhel "$@"
+
+rpm -e cockpit-tests
+
+# HACK: cockpit-cert-session needs SELinux profile update
+# https://bugzilla.redhat.com/show_bug.cgi?id=1690444
+# https://bugzilla.redhat.com/show_bug.cgi?id=1698405
+semanage fcontext -a /usr/libexec/cockpit-cert-session -t cockpit_session_exec_t
+restorecon /usr/libexec/cockpit-cert-session
+cat <<EOF > /tmp/local.te
+module local 1.0;
+require { type cockpit_session_t; type sssd_t; type cockpit_ws_t; type cert_t; type tmpfs_t; class dbus send_msg; class file { read write map getattr }; }
+allow cockpit_session_t tmpfs_t:file { read write map getattr };
+allow cockpit_session_t sssd_t:dbus send_msg;
+allow sssd_t cockpit_session_t:dbus send_msg;
+allow cockpit_ws_t tmpfs_t:file { read write map getattr };
+dontaudit cockpit_ws_t cert_t:file { read map };
+EOF
+
+checkmodule -M -m -o /tmp/local.mod /tmp/local.te
+semodule_package -o /tmp/local.pp -m /tmp/local.mod
+semodule -i /tmp/local.pp

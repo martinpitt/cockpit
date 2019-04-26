@@ -1,3 +1,59 @@
+UX study: Smartcard (Client-side certificate) authentication in Cockpit
+=======================================================================
+
+This branch demonstrates a prototype of Cockpit for using [IdM managed TLS
+client side certificates](https://www.freeipa.org/page/V4/User_Certificates).
+These are intended to be provided by a smart card, but for an initial demo they
+can also be imported as [PKCS#12](https://en.wikipedia.org/wiki/PKCS_12) file
+into the browser.
+
+This demo is meant to demonstrate the user experience workflow for the
+authentication, and get feedback about various ways how to present and
+integrate Terminal windows (for the  user and root).
+
+Running
+-------
+
+ * Run `./prepare.sh` to fetch the necessary images (`rhel-8-0` and `ipa`),
+   build the code, and prepare the VM. This requires internet access and Red
+   Hat VPN.
+
+ * Run `./run.sh` to start the actual demo. This will start to VMs: one with
+   FreeIPA, with a "jane" user (password "foobar") and an associated X.509
+   certificate, and one RHEL 8.0 VM running Cockpit. Setup takes a while
+   (enrolling into the IPA domain), then it will eventually stop and show
+   further instructions.
+
+You can run this demo on fedora-29 or fedora-30 as well, just change the image
+name in these two scripts. With that you won't require Red Hat VPN.
+
+Caveats
+-------
+
+ * This is still relatively unsafe! You need to trust the web server's
+   integrity, i. e. if an attacker can hack into cockpit-ws and exploit a
+   vulnerability to run arbitrary code, they can present arbitrary public keys
+   without having to present the private key, and thus log in as any user that
+   has a certificate configured.
+
+ * This has not yet been tested with an actual smartcard due to lack of
+   hardware (this will be done soon).
+
+ * When testing this with browser-imported certificates, there is basically no
+   interactive re-authentication. Once a certificate is given to a website, all
+   major browsers will keep using it. There is no way for a web application to
+   force the browser to re-ask for a certificate, this can only be done through
+   revoking the certificate (which is impractical for this use case).
+
+   With actual smart cards this *should* work better though, the browser is
+   expected to do interactive authentication every time and not cache the
+   private key.
+
+ * When not checking "Remember this decision" in Firefox' certificate selection
+   dialog, the cert has to be re-presented a lot. We need to investigate
+   re-using the existing TLS session.
+
+
 [![semaphore ci build status](https://semaphoreci.com/api/v1/cockpit-project/cockpit/branches/master/badge.svg)](https://semaphoreci.com/cockpit-project/cockpit) <br />
 
 # Cockpit
