@@ -54,6 +54,23 @@ Caveats
    existing TLS session. At that time it's not clear whether this will be
    possible.
 
+Discussion points
+-----------------
+ * When is the smart card presence required for Putty-CAC? Always, or just for
+   initial authentication, and then it can be pulled out? What's the desired
+   behaviour, logout on smartcard removal, or remember the auth?
+
+ * Preference for the terminal representation?
+
+ * Does the browser cert experience match the expectations? (We can't do
+   anything about that)
+
+ * This currently requires setting up cockpit on every target machine. Client
+   certificate trust or access cannot be forwarded through the browser through
+   SSH. PuTTY has a direct smart card → remote sshd communication channel, but
+   with a browser and cockpit we can't have that. So bastion host and ssh don't
+   work. How does that suit your use case?
+
 [![semaphore ci build status](https://semaphoreci.com/api/v1/cockpit-project/cockpit/branches/master/badge.svg)](https://semaphoreci.com/cockpit-project/cockpit) <br />
 
 # Cockpit
