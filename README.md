@@ -36,23 +36,23 @@ Caveats
    without having to present the private key, and thus log in as any user that
    has a certificate configured.
 
- * This has not yet been tested with an actual smartcard due to lack of
-   hardware (this will be done soon).
-
  * When testing this with browser-imported certificates, there is basically no
    interactive re-authentication. Once a certificate is given to a website, all
    major browsers will keep using it. There is no way for a web application to
    force the browser to re-ask for a certificate, this can only be done through
    revoking the certificate (which is impractical for this use case).
 
-   With actual smart cards this *should* work better though, the browser is
-   expected to do interactive authentication every time and not cache the
-   private key.
+ * With a physical smart card it looks exactly the same when keeping the card
+   in the reader, it just gets re-accessed every time the user loads a new
+   page. Taking out the smartcard will cause a disconnection error, the browser
+   isn't clever enough to ask to re-insert it -- so don't do this for this demo!
 
  * When not checking "Remember this decision" in Firefox' certificate selection
-   dialog, the cert has to be re-presented a lot. We need to investigate
-   re-using the existing TLS session.
+   dialog, the cert has to be re-presented a lot.
 
+ * To address the latter two points, we need to investigate re-using the
+   existing TLS session. At that time it's not clear whether this will be
+   possible.
 
 [![semaphore ci build status](https://semaphoreci.com/api/v1/cockpit-project/cockpit/branches/master/badge.svg)](https://semaphoreci.com/cockpit-project/cockpit) <br />
 

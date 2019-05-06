@@ -477,6 +477,13 @@ This got enabled in /etc/cockpit/cockpit.conf through
 - Import jane's certificate into Firefox:
   Preferences → Privacy & Security → View Certificates… → "Your Certificates" tab → Import…
   and import /tmp/jane.p12 ; certificate encryption password is "foo"
+
+- Alternatively, if you have an actual smart card, import the certificate onto
+  it for an existing user. E. g.:
+
+  pkcs15-init --store-pin --auth-id 99 --label "Jane"
+  pkcs15-init --store-private-key /tmp/jane.p12 --format pkcs12 --auth-id 99
+
 - Then press Enter to open private browser window
 """)
         sit()
@@ -484,6 +491,8 @@ This got enabled in /etc/cockpit/cockpit.conf through
         print("""
 - Browser should ask for client certificate, pick jane's
 - Should then automatically log in as jane (check user name at top right)
+- If you use a physical smart card, do not take it out! (see Caveats in
+  README.md)
 - Point out that UI admin privs do *not* work now, e. g. "Power Options"
   is disabled). Cockpit did not receive a password for sudo.
   It still works in the terminal, though.
