@@ -126,6 +126,7 @@ BuildRequires: systemd-devel
 BuildRequires: pcp-libs-devel
 BuildRequires: krb5-server
 BuildRequires: gdb
+BuildRequires: openssh-clients
 
 # For documentation
 BuildRequires: xmlto
