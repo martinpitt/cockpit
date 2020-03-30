@@ -58,9 +58,95 @@ mv -f ~/.ssh/authorized_keys.test-avc ~/.ssh/authorized_keys
 
 class TestSelinux(MachineCase):
     provision = {
-        "0": {},
-        "ansible_machine": {"image": TEST_OS_DEFAULT}
+        "0": { "address": "10.111.113.1/20", "forward": {"80": 8080} },
+        "1": { "address": "10.111.113.2/20", "forward": {"80": 8080} }
     }
+
+    def testDemo(self):
+        m = self.machine
+        m2 = self.machines["1"]
+
+        # fix audit events first
+        m.execute(script=FIX_AUDITD)
+
+        # set up httpd on both machines
+        setup = """set -e
+# enable userdir
+hostnamectl set-hostname {0}
+sed -i '/UserDir disabled/d; /UserDir public_html/ s/#//' /etc/httpd/conf.d/userdir.conf
+su - -c 'chmod o+x ~ && mkdir public_html && echo This is {0} > public_html/hello.txt' admin
+systemctl enable --now httpd cockpit.socket
+firewall-cmd --add-service http
+"""
+
+        m.execute(setup.format("server1"))
+        m2.execute(setup.format("server2"))
+
+        # set up SSH from 1st to 2nd machine
+        m.execute("""su - -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""' admin""")
+        m.execute(r"printf 'Host server2\n  Hostname 10.111.113.2\n  User root\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n' > ~admin/.ssh/config")
+        key = m.execute("cat ~admin/.ssh/id_rsa.pub")
+        m2.write("/root/.ssh/authorized_keys", key)
+
+        # set up Ansible on first machine
+        m.execute(r"""set -e; cd ~admin
+mkdir -p roles/selinux/tasks
+printf -- "- hosts: myservers\n  roles:\n  - selinux\n" > setup.yml
+printf "[myservers]\nserver2\n" > inventory
+chown -R admin:admin .
+""")
+
+
+        print("""
+
+Preparation
+-----------------------
+Open web console:
+firefox --private-window http://{0}:{1}
+Login as admin:foobar
+open http://127.0.0.2:8081 (first machine)
+open http://127.0.0.2:8082 (second machine)
+
+Demo
+----------------------
+- introduce yourself
+- Web Console is known as troubleshooting and learning tool for individual machines
+- show new workflow to combine that with large-scale automation
+- summarized as "show me what I have done"
+
+- here I have two independent machines running RHEL 8.2
+- already set up httpd and enabled it in the firewall
+- Show both httpd default pages from above
+- show in Terminal: created ~admin/public_html/hello.txt
+- open .../~admin/ on both machines → permission denied
+
+- Look at Logs page, see failure there
+- Go to SELinux page
+- Apply first solution (seboolean), that sounds like what we want
+- Apply button not yet available in RHEL 8.2, but Fedora and 8.3; show the manual command
+- Reopen http on first machine, works now
+
+- how do I apply this to all my other machines?
+- Go back to SELinux
+- That's the new "System Modifications" table, it has the new flag as well
+- "automation script", Ansible, copy
+
+- Go to Terminal
+- Show already existing skeleton:
+  cat inventory
+  cat setup.yml
+- vi roles/selinux/tasks/main.yml, paste it in there; edit out the other two bools
+  ansible-playbook -i inventory setup.yml
+
+- open .../~admin/ on second machine, works now
+
+- ssh machine2 getsebool -a | grep http.*home
+
+- We believe that this approach combines the strength of single-machine troubleshooting and automation in an easy to use way
+- We want to look out for other Web Console pages where this makes sense, and would be happy to discuss this with you.
+""".format(m.web_address, m.web_port))
+
+        sit()
 
     @skipImage("No setroubleshoot", "debian-stable", "debian-testing", "fedora-coreos", "ubuntu-2004", "ubuntu-stable")
     @skipBrowser("Firefox needs http to access clipboard", "firefox")
