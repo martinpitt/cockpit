@@ -114,33 +114,29 @@ Demo
 - show new workflow to combine that with large-scale automation
 - summarized as "show me what I have done"
 
-- here I have two independent machines running RHEL 8.2
-- already set up httpd and enabled it in the firewall
+- Here I have two machines, server 1 and server2, both running a web server
 - Show both httpd default pages from above
+- I want to serve pages from user's home directories
 - show in Terminal: created ~admin/public_html/hello.txt
 - open .../~admin/ on both machines → permission denied
 
 - Look at Logs page, see failure there
 - Go to SELinux page
 - Apply first solution (seboolean), that sounds like what we want
-- Apply button not yet available in RHEL 8.2, but Fedora and 8.3; show the manual command
 - Reopen http on first machine, works now
 
 - how do I apply this to all my other machines?
 - Go back to SELinux
-- That's the new "System Modifications" table, it has the new flag as well
-- "automation script", Ansible, copy
+- That's the new "System Modifications" table. It shows the SELinux policy changes compared  to the OS default in human readable
+  form.
+- It can produce an "automation script", shell/Ansible; copy that
 
 - Go to Terminal
-- Show already existing skeleton:
-  cat inventory
-  cat setup.yml
-- vi roles/selinux/tasks/main.yml, paste it in there; edit out the other two bools
+- cat setup.yml → refers to selinux role, let's create that
+- vi roles/selinux/tasks/main.yml
   ansible-playbook -i inventory setup.yml
 
 - open .../~admin/ on second machine, works now
-
-- ssh machine2 getsebool -a | grep http.*home
 
 - We believe that this approach combines the strength of single-machine troubleshooting and automation in an easy to use way
 - We want to look out for other Web Console pages where this makes sense, and would be happy to discuss this with you.
