@@ -18,6 +18,7 @@
 # along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
 
 import parent
+import subprocess
 from testlib import *
 from machine_core.constants import TEST_OS_DEFAULT
 
@@ -58,8 +59,8 @@ mv -f ~/.ssh/authorized_keys.test-avc ~/.ssh/authorized_keys
 
 class TestSelinux(MachineCase):
     provision = {
-        "0": { "address": "10.111.113.1/20", "forward": {"80": 8080} },
-        "1": { "address": "10.111.113.2/20", "forward": {"80": 8080} }
+        "0": { "address": "10.111.113.1/20" },
+        "1": { "address": "10.111.113.2/20" },
     }
 
     def testDemo(self):
@@ -82,6 +83,14 @@ firewall-cmd --add-service http
         m.execute(setup.format("server1"))
         m2.execute(setup.format("server2"))
 
+        # make the VMs appear like proper hosts
+        subprocess.Popen(["ssh", "-L", "127.0.10.1:8080:localhost:80", "-L", "127.0.10.1:9090:localhost:9090",
+                          "-p", m.ssh_port, "-oStrictHostKeyChecking=no", "-oUserKnownHostsFile=/dev/null",
+                          "-i", "bots/machine/identity", "root@" + m.ssh_address, "sleep infinity"])
+        subprocess.Popen(["ssh", "-L", "127.0.10.2:8080:localhost:80",
+                          "-p", m2.ssh_port, "-oStrictHostKeyChecking=no", "-oUserKnownHostsFile=/dev/null",
+                          "-i", "bots/machine/identity", "root@" + m2.ssh_address, "sleep infinity"])
+
         # set up SSH from 1st to 2nd machine
         m.execute("""su - -c 'ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ""' admin""")
         m.execute(r"printf 'Host server2\n  Hostname 10.111.113.2\n  User root\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n' > ~admin/.ssh/config")
@@ -101,11 +110,16 @@ chown -R admin:admin .
 
 Preparation
 -----------------------
+cat << EOF | sudo tee -a /etc/hosts
+127.0.10.1 server1.mynet
+127.0.10.2 server2.mynet
+EOF
+
 Open web console:
-firefox --private-window http://{0}:{1}
+firefox --private-window http://server1.mynet:9090
 Login as admin:foobar
-open http://127.0.0.2:8081 (first machine)
-open http://127.0.0.2:8082 (second machine)
+open http://server1.mynet:8080 (first machine)
+open http://server2.mynet:8080 (second machine)
 
 Demo
 ----------------------
@@ -140,7 +154,7 @@ Demo
 
 - We believe that this approach combines the strength of single-machine troubleshooting and automation in an easy to use way
 - We want to look out for other Web Console pages where this makes sense, and would be happy to discuss this with you.
-""".format(m.web_address, m.web_port))
+""")
 
         sit()
 
