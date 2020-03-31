@@ -3,4 +3,4 @@
 [ -e configure ] || ./autogen.sh
 make -j$(nproc)
 test/image-prepare -vq rhel-8-2
-bots/image-customize -v -i httpd -r 'dnf install -y --enablerepo=epel ansible' rhel-8-2
+bots/image-customize -v -i httpd -r 'dnf install -y --enablerepo=epel ansible && rpm -e cockpit-debuginfo cockpit-tests cockpit-dashboard subscription-manager subscription-manager-cockpit && semanage boolean -D' rhel-8-2
