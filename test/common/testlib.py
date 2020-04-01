@@ -732,7 +732,7 @@ class MachineCase(unittest.TestCase):
         (unused, sep, label) = self.id().partition(".")
         return label.replace(".", "-")
 
-    def new_machine(self, image=None, forward={}, restrict=True, cleanup=True, **kwargs):
+    def new_machine(self, image=None, forward={}, restrict=False, cleanup=True, **kwargs):
         machine_class = self.machine_class
         if image is None:
             image = self.image
