@@ -46,6 +46,7 @@ def main():
     parser.add_argument('-q', '--quick', action='store_true', help='Skip unit tests to build faster')
     parser.add_argument('-o', '--overlay', action='store_true', help='Install into existing test/image/ overlay instead of from pristine base image')
     parser.add_argument('-b', '--build-image', action='store', help='Build in this image')
+    parser.add_argument('--devel-build-on-default-os', action='store_true', help='Do a development build on default TEST_OS')
     parser.add_argument('-B', '--build-only', action='store_true', help='Only build and download results')
     parser.add_argument('-I', '--install-only', action='store_true', help='Only upload and install')
     parser.add_argument('-c', '--containers', action='store_true', help='Install container images')
@@ -163,9 +164,9 @@ def build_and_install(build_image, build_results, skips, args):
         else:
             subprocess.check_call('./autogen.sh')
 
-    # Do a development build on the latest Fedora image so that we can spot React and other dev-only warnings
     env = os.environ.copy()
-    if os.path.basename(build_image) == TEST_OS_DEFAULT:
+    # If requested, do a development build on the latest Fedora image so that we can spot React and other dev-only warnings
+    if args.devel_build_on_default_os and os.path.basename(build_image) == TEST_OS_DEFAULT:
         env["NODE_ENV"] = "development"
     # this is for a development build, not a release, so we care about speed, not best size
     subprocess.check_call(["make", "--silent", "-j%i" % multiprocessing.cpu_count(),

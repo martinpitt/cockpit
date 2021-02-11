@@ -10,11 +10,11 @@ tools/make-bots
 TEST_SCENARIO=${TEST_SCENARIO:-verify}
 case $TEST_SCENARIO in
     verify)
-        test/image-prepare --verbose $TEST_OS
+        test/image-prepare --verbose --devel-build-on-default-os $TEST_OS
         test/common/run-tests --jobs ${TEST_JOBS:-1} --test-dir test/verify
         ;;
     firefox)
-        test/image-prepare --quick --verbose $TEST_OS
+        test/image-prepare --quick --devel-build-on-default-os --verbose $TEST_OS
         TEST_BROWSER=firefox test/common/run-tests --jobs ${TEST_JOBS:-1} --test-dir test/verify
         ;;
     selenium-*)
