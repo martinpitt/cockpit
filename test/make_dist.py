@@ -21,6 +21,7 @@ import io
 import multiprocessing
 import os
 import urllib
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -135,7 +136,23 @@ def download_dist():
         if len(names) != 1 or not names[0].endswith(".tar.xz"):
             print("make_dist: expected zip artifact with exactly one tar.xz member")
             return None
-        return fzip.extract(names[0])
+        tar_path = fzip.extract(names[0])
+
+    # Extract node_modules and dist locally for speeding up the build and allowing integration tests to run
+    # unfortunately it is impossible with tar CLI and Python's tarfile to just extract that subset;
+    # so extract it all, pick what we want, and clean it up
+    unpack_dirs = [d for d in ["dist", "node_modules"] if not os.path.exists(d)]
+    if unpack_dirs:
+        print("make_dist: Extracting directories from tarball:", ' '.join(unpack_dirs))
+        os.makedirs("tmp-unpack", exist_ok=True)
+        try:
+            subprocess.check_call(["tar", "--strip-components=1", "-Ctmp-unpack", "-xf", tar_path])
+            for d in unpack_dirs:
+                os.rename(os.path.join("tmp-unpack", d), d)
+        finally:
+            shutil.rmtree("tmp-unpack")
+
+    return tar_path
 
 
 def make_dist(devel_mode):
