@@ -1,0 +1,56 @@
+name: Trigger integration tests after build-dist
+on:
+  workflow_run:
+    workflows: build-dist
+    types: [completed]
+
+jobs:
+  scan:
+    # build-dist also runs on push
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone bots
+        uses: actions/checkout@v2
+        with:
+          # repository: cockpit-project/bots
+          # XXX: has additional test map for martinpitt/cockpit
+          repository: martinpitt/bots
+          path: bots
+
+      - name: Download PR payload artifact
+        uses: actions/github-script@v3.1.0
+        with:
+          script: |
+            const artifacts = await github.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: ${{github.event.workflow_run.id }},
+            });
+            const matchArtifact = artifacts.data.artifacts.filter(a => a.name === 'pr-event.json')[0];
+            const download = await github.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            const fs = require('fs');
+            fs.writeFileSync('${{github.workspace}}/pr-event.zip', Buffer.from(download.data));
+
+      - name: Set up secrets
+        run: |
+          mkdir -p ~/.config
+          sudo mkdir -p /run/secrets/webhook
+          sudo chown $(id -un) /run/secrets/webhook
+          # tests-scan needs this for /collaborators/<user>/permission
+          echo '${{ secrets.COCKPITUOUS_TOKEN }}' > ~/.config/github-token
+          # tests-scan expects the AMQP secrets as they appear in a webhook cockpit/tasks container
+          echo '${{ secrets.COCKPIT_CA_PEM }}' > /run/secrets/webhook/ca.pem
+          echo '${{ secrets.AMQP_CLIENT_PEM }}' > /run/secrets/webhook/amqp-client.pem
+          echo '${{ secrets.AMQP_CLIENT_KEY }}' > /run/secrets/webhook/amqp-client.key
+
+      - name: Run tests-scan
+        run: |
+          unzip pr-event.zip
+          pip3 install pika
+          bots/tests-scan --pull-data "$(cat pr-event.json)" --repo '${{ github.repository }}' --amqp '${{ secrets.AMQP_ADDRESS }}'

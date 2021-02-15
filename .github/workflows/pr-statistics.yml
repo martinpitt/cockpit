@@ -1,0 +1,36 @@
+name: Test statistics for merged PR
+on:
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  stats:
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone bots
+        uses: actions/checkout@v2
+        with:
+          repository: cockpit-project/bots
+          path: bots
+
+      - name: Set up secrets
+        run: |
+          sudo mkdir -p /run/secrets/webhook
+          sudo chown $(id -un) /run/secrets/webhook
+          # bots distributed_queue expects the AMQP secrets as they appear in a webhook cockpit/tasks container
+          echo '${{ secrets.COCKPIT_CA_PEM }}' > /run/secrets/webhook/ca.pem
+          echo '${{ secrets.AMQP_CLIENT_PEM }}' > /run/secrets/webhook/amqp-client.pem
+          echo '${{ secrets.AMQP_CLIENT_KEY }}' > /run/secrets/webhook/amqp-client.key
+
+      # this has to be run on a CentOS CI task bot, as we don't have a remote database locking mechanism
+      # see bots run-queue consume_webhook_queue()
+      - name: Queue store-tests command
+        run: |
+          pip3 install pika
+          cat <<EOF
+          ./store-tests --db /cache/images/test-results.db --repo ${{ github.repository }} ${{ github.event.pull_request.head.sha }}
+          EOF
+
+      - uses: mxschmitt/action-tmate@v3
+        if: always()

@@ -29,3 +29,12 @@ jobs:
           name: "dist-${{ github.event.pull_request.head.sha || github.sha }}"
           path: tmp/dist/cockpit-*.tar.xz
           retention-days: 7
+
+      - name: Save github.event for follow-up workflows
+        run: echo '${{ toJSON(github.event) }}' > pr-event.json
+
+      - name: Create artifact of event.json
+        uses: actions/upload-artifact@v2
+        with:
+          name: pr-event.json
+          path: pr-event.json
