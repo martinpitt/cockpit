@@ -1,0 +1,43 @@
+name: Trigger integration tests after build-dist
+on:
+  workflow_run:
+    workflows: build-dist
+    types: [completed]
+
+jobs:
+  scan:
+    # build-dist also runs on push
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone bots
+        uses: actions/checkout@v2
+        with:
+          # repository: cockpit-project/bots
+          # XXX: has additional test map for martinpitt/cockpit
+          repository: martinpitt/bots
+          path: bots
+
+      - name: Download PR payload artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build-dist
+          run_id: ${{ github.event.workflow_run.id }}
+          name: pr-event.json
+
+      - name: Set up secrets
+        run: |
+          mkdir -p ~/.config
+          sudo mkdir -p /run/secrets/webhook
+          sudo chown $(id -un) /run/secrets/webhook
+          # tests-scan needs this for /collaborators/<user>/permission
+          echo '${{ secrets.COCKPITUOUS_TOKEN }}' > ~/.config/github-token
+          # tests-scan expects the AMQP secrets as they appear in a webhook cockpit/tasks container
+          echo '${{ secrets.COCKPIT_CA_PEM }}' > /run/secrets/webhook/ca.pem
+          echo '${{ secrets.AMQP_CLIENT_PEM }}' > /run/secrets/webhook/amqp-client.pem
+          echo '${{ secrets.AMQP_CLIENT_KEY }}' > /run/secrets/webhook/amqp-client.key
+
+      - name: Run tests-scan
+        run: |
+          pip3 install pika
+          bots/tests-scan --pull-data "$(cat pr-event.json)" --repo '${{ github.repository }}' --amqp '${{ secrets.AMQP_ADDRESS }}'
