@@ -1,4 +1,4 @@
-# Cockpit
+# pwned
 **A sysadmin login session in a web browser**
 
 [cockpit-project.org](https://cockpit-project.org/)
