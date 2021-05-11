@@ -7,25 +7,23 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/cockpit-project/unit-tests
-      env:
-        HOME: /home/builder
-      options: --workdir /home/builder
     timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@v2
         with:
+          path: cockpit
           # need this to also fetch tags
           fetch-depth: 0
 
       - name: Build dist
-        run:  test/make_dist.py
+        run:  |
+          chmod -R a+w cockpit
+          sudo podman run -i -v ./cockpit:/source -w /source ghcr.io/cockpit-project/unit-tests test/make_dist.py
 
       - name: Create dist artifact
         uses: actions/upload-artifact@v2
         with:
           name: dist
-          path: cockpit-*.tar.xz
+          path: source/cockpit-*.tar.xz
           retention-days: 1
