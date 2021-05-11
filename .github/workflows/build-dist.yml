@@ -7,6 +7,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cockpit-project/unit-tests
+      env:
+        HOME: /home/builder
+      options: --workdir /home/builder
     timeout-minutes: 20
     steps:
       - name: Clone repository
@@ -15,14 +20,8 @@ jobs:
           # need this to also fetch tags
           fetch-depth: 0
 
-      - name: Install minimal build dependencies
-        run: |
-          sudo apt install -y gettext sassc xsltproc xmlto docbook-xsl
-
-      # similar to create-archive in packit.yaml
       - name: Build dist
-        run: |
-          env AUTOGEN_CONFIGURE_ARGS='--disable-polkit --disable-ssh --disable-pcp --with-systemdunitdir=/invalid CPPFLAGS=-Itools/mock-build-env' PKG_CONFIG_PATH=tools/mock-build-env test/make_dist.py
+        run:  test/make_dist.py
 
       - name: Create dist artifact
         uses: actions/upload-artifact@v2
