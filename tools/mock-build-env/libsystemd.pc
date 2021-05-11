@@ -1,0 +1,3 @@
+Name: systemd
+Description: Mock PC for libsystemd
+Version: 246.fake
