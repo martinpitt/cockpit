@@ -7,6 +7,9 @@ require:
   - cockpit-sosreport
   - cockpit-storaged
   - cockpit-tests
+  - cockpit-ws
+  # HACK: ensure installability
+  - glibc
   # build/test infra dependencies
   - git
   - make
