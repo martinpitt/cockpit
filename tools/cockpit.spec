@@ -51,7 +51,7 @@ URL:            https://cockpit-project.org/
 
 Version:        0
 Release:        1%{?dist}
-Source0:        https://github.com/cockpit-project/cockpit/releases/download/%{version}/cockpit-%{version}.tar.xz
+Source0:        https://github.com/martinpitt/cockpit/releases/download/%{version}/cockpit-%{version}.tar.xz
 
 # in RHEL 8 the source package is duplicated: cockpit (building basic packages like cockpit-{bridge,system})
 # and cockpit-appstream (building optional packages like cockpit-{pcp})

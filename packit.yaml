@@ -53,8 +53,8 @@ jobs:
   - job: copr_build
     trigger: release
     metadata:
-      owner: "@cockpit"
-      project: "cockpit-preview"
+      owner: "martinpitt"
+      project: "test-fixes"
       preserve_project: True
       # HACK: hardcoding this list is redundant and hard to change; packit
       # should just use the existing config for permanent COPRs;
@@ -74,7 +74,7 @@ jobs:
       # HACK: tarball for releases (copr_build, koji, etc.), copying spec's Source0; this
       # really should be the default, see https://github.com/packit/packit-service/issues/1505
       create-archive:
-        - sh -exc "curl -L -O https://github.com/cockpit-project/cockpit/releases/download/${PACKIT_PROJECT_VERSION}/${PACKIT_PROJECT_NAME_VERSION}.tar.xz"
+        - sh -exc "curl -L -O https://github.com/martinpitt/cockpit/releases/download/${PACKIT_PROJECT_VERSION}/${PACKIT_PROJECT_NAME_VERSION}.tar.xz"
         - sh -exc "ls ${PACKIT_PROJECT_NAME_VERSION}.tar.xz"
 
   - job: propose_downstream
@@ -82,8 +82,6 @@ jobs:
     metadata:
       dist_git_branches:
         - fedora-development
-        - fedora-35
-        - fedora-36
 
   - job: koji_build
     trigger: commit
