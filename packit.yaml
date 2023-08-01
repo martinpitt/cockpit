@@ -36,9 +36,11 @@ jobs:
       - centos-stream-9-aarch64
 
   # current Fedora runs reverse dependency testing against https://copr.fedorainfracloud.org/coprs/g/cockpit/main-builds/
+  # these are triggered by the trigger-revdeps workflow on relevant changes
   - job: tests
     identifier: revdeps
     trigger: pull_request
+    manual_trigger: true
     targets:
       - fedora-38
     tf_extra_params:
