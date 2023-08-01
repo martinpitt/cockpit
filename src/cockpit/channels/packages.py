@@ -65,12 +65,18 @@ class PackagesChannel(Channel):
 
             document = packages.load_path(path, headers)
 
+            protocol = headers.get('X-Forwarded-Proto')
+            host = headers.get('X-Forwarded-Host')
+            if not isinstance(protocol, str) or not isinstance(host, str):
+                raise ValueError('Invalid host or protocol header')
+
             # Note: we can't cache documents right now.  See
             # https://github.com/cockpit-project/cockpit/issues/19071
             # for future plans.
             out_headers = {
                 'Cache-Control': 'no-cache, no-store',
                 'Content-Type': document.content_type,
+                'Access-Control-Allow-Origin': f'{protocol}://{host}',
             }
 
             if document.content_encoding is not None:
@@ -86,11 +92,6 @@ class PackagesChannel(Channel):
                 #
                 # https://github.com/w3c/webappsec-csp/issues/7
                 if "connect-src 'self';" in policy:
-                    protocol = headers.get('X-Forwarded-Proto')
-                    host = headers.get('X-Forwarded-Host')
-                    if not isinstance(protocol, str) or not isinstance(host, str):
-                        raise ValueError('Invalid host or protocol header')
-
                     websocket_scheme = "wss" if protocol == "https" else "ws"
                     websocket_origin = f"{websocket_scheme}://{host}"
                     policy = policy.replace("connect-src 'self';", f"connect-src {websocket_origin} 'self';")
