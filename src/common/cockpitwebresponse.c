@@ -1375,7 +1375,9 @@ web_response_file (CockpitWebResponse *response,
   GString *string = begin_headers (response, 200, "OK");
   guint seen = 0;
 
-  if (response->origin)
+  if (g_str_has_suffix (unescaped, ".woff2"))
+    seen |= append_header (string, "Access-Control-Allow-Origin", "*");
+  else if (response->origin)
     seen |= append_header (string, "Access-Control-Allow-Origin", response->origin);
 
   /*
