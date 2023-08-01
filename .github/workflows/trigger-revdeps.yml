@@ -1,0 +1,38 @@
+name: revdeps
+on: pull_request_target
+jobs:
+  trigger:
+    runs-on: ubuntu-22.04
+    permissions:
+      issues: write
+      pull-requests: write
+    timeout-minutes: 5
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Check if PR changes bridge or ws
+        id: check
+        run: |
+          set -ex
+          git fetch origin "${BASE_SHA}" "${HEAD_SHA}"
+          changes=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" -- src/)
+          if [ -n "${changes}" ]; then
+              echo "::set-output name=changed::true"
+          fi
+
+      - name: Trigger reverse dependency tests
+        if: steps.check.outputs.changed
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '/packit test --identifier revdeps'
+            })
