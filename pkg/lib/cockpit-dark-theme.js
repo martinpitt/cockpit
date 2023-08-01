@@ -23,6 +23,7 @@ function debug() {
     }
 }
 
+/*
 function changeDarkThemeClass(documentElement, dark_mode) {
     debug(`Setting cockpit theme to ${dark_mode ? "dark" : "light"}`);
 
@@ -32,8 +33,10 @@ function changeDarkThemeClass(documentElement, dark_mode) {
         documentElement.classList.remove('pf-v5-theme-dark');
     }
 }
+*/
 
 function _setDarkMode(_style) {
+    /*
     const style = _style || localStorage.getItem('shell:style') || 'auto';
     let dark_mode;
     // If a user set's an explicit theme, ignore system changes.
@@ -43,6 +46,7 @@ function _setDarkMode(_style) {
         dark_mode = false;
     }
     changeDarkThemeClass(document.documentElement, dark_mode);
+    */
 }
 
 window.addEventListener("storage", event => {

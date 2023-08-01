@@ -90,8 +90,10 @@ function Frames(index, setupIdleResetTimers) {
                 if (count > 0)
                     index.navigate();
             }
+            /*
             if (frame.contentWindow && setupIdleResetTimers)
                 setupIdleResetTimers(frame.contentWindow);
+            */
 
             if (frame.contentDocument && frame.contentDocument.documentElement) {
                 frame.contentDocument.documentElement.lang = language;
@@ -209,6 +211,7 @@ function Frames(index, setupIdleResetTimers) {
             list[component] = frame;
             document.getElementById("content").appendChild(frame);
 
+            /*
             const style = localStorage.getItem('shell:style') || 'auto';
             let dark_mode;
             // If a user set's an explicit theme, ignore system changes.
@@ -227,6 +230,7 @@ function Frames(index, setupIdleResetTimers) {
             } else {
                 frame.contentDocument.documentElement.style.background = 'white';
             }
+            */
         }
         frame_ready(frame);
         return frame;

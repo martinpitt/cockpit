@@ -51,8 +51,10 @@ if (typeof window.debugging === "undefined") {
     try {
         // Sometimes this throws a SecurityError such as during testing
         Object.defineProperty(window, "debugging", {
-            get: function() { return window.sessionStorage.debugging || window.localStorage.debugging },
-            set: function(x) { window.sessionStorage.debugging = x }
+            // get: function() { return window.sessionStorage.debugging || window.localStorage.debugging },
+            // set: function(x) { window.sessionStorage.debugging = x }
+            get: function() { return undefined },
+            set: function(x) {}
         });
     } catch (e) { }
 }
