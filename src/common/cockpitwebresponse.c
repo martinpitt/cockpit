@@ -872,8 +872,8 @@ finish_headers (CockpitWebResponse *self,
     g_string_append (string, "X-Content-Type-Options: nosniff\r\n");
   /* Be very strict here -- there is no reason that external web sites should
    * be able to read any resource. This does *not* affect embedding with <iframe> */
-  if ((seen & HEADER_CROSS_ORIGIN_RESOURCE_POLICY) == 0)
-    g_string_append (string, "Cross-Origin-Resource-Policy: same-origin\r\n");
+  // if ((seen & HEADER_CROSS_ORIGIN_RESOURCE_POLICY) == 0)
+    g_string_append (string, "Cross-Origin-Resource-Policy: cross-origin\r\n");
   /* This is the counterpart for iframe embedding, line of defence against clickjacking */
   if ((seen & HEADER_X_FRAME_OPTIONS) == 0)
     g_string_append (string, "X-Frame-Options: sameorigin\r\n");
