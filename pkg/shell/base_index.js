@@ -209,12 +209,13 @@ function Frames(index, setupIdleResetTimers) {
             console.log("XXX xhr-opening", src, "into", frame);
             const xhr = new XMLHttpRequest();
             xhr.open("GET", src);
-            xhr.responseType = 'blob';
+            xhr.responseType = 'text';
             xhr.onreadystatechange = () => {
                 if (xhr.readyState === XMLHttpRequest.DONE) {
                     if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
                         console.log("iframe load for", src, "done");
-                        frame.src = URL.createObjectURL(xhr.response);
+                        // frame.src = src;
+                        frame.srcdoc = xhr.responseText;
                     } else {
                         console.error("Failed to load frame", src, ":", xhr.status, xhr.statusText);
                     }
