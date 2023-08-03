@@ -564,6 +564,7 @@ handle_resource (CockpitHandlerData *data,
     {
       if (service)
         {
+          g_message("XXX handle_resource: path %s, have service", path);
           cockpit_channel_response_serve (service, headers, response, where,
                                           cockpit_web_response_get_path (response));
         }
@@ -573,6 +574,13 @@ handle_resource (CockpitHandlerData *data,
         }
       else
         {
+          g_message("XXX handle_resource: path %s, no service, 401; ", path);
+          GHashTableIter iter;
+          gpointer key, value;
+          g_hash_table_iter_init (&iter, headers);
+          while (g_hash_table_iter_next (&iter, &key, &value))
+            g_message("    header %s: %s", (gchar *) key, (gchar *) value);
+
           cockpit_web_response_error (response, 401, NULL, NULL);
         }
     }

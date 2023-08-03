@@ -156,6 +156,7 @@ function Frames(index, setupIdleResetTimers) {
             frame.setAttribute("data-host", host);
             frame.setAttribute("sandbox", "allow-scripts allow-forms");
             frame.style.display = "none";
+            frame.src = "";
 
             let base, checksum;
             if (machine) {
@@ -193,7 +194,7 @@ function Frames(index, setupIdleResetTimers) {
         if (!hash)
             hash = "/";
         const src = frame.url + "#" + hash;
-        if (frame.getAttribute('src') != src) {
+        if (new_frame) {
             if (frame.contentWindow) {
                 // This prevents the browser from creating a new
                 // history entry.  It would do that whenever the "src"
@@ -204,7 +205,22 @@ function Frames(index, setupIdleResetTimers) {
                 // the current frame and the hash of the new frame.
                 frame.contentWindow.location.replace(src);
             }
-            frame.setAttribute('src', src);
+            // frame.setAttribute('src', src);
+            console.log("XXX xhr-opening", src, "into", frame);
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", src);
+            xhr.responseType = 'blob';
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+                        console.log("iframe load for", src, "done");
+                        frame.src = URL.createObjectURL(xhr.response);
+                    } else {
+                        console.error("Failed to load frame", src, ":", xhr.status, xhr.statusText);
+                    }
+                }
+            };
+            xhr.send();
         }
 
         /* Store frame only when fully setup */

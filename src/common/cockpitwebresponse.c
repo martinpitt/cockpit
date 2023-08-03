@@ -1387,7 +1387,7 @@ web_response_file (CockpitWebResponse *response,
    */
   if (g_str_has_suffix (unescaped, ".html"))
     {
-      const gchar *default_policy = "default-src 'self' 'unsafe-inline';";
+      const gchar *default_policy = "default-src 'self' 'unsafe-inline' blob:;";
       g_autofree gchar *policy = cockpit_web_response_security_policy (default_policy, response->origin);
       seen |= append_header (string, "Content-Security-Policy", policy);
     }
@@ -1872,7 +1872,7 @@ gchar *
 cockpit_web_response_security_policy (const gchar *content_security_policy,
                                       const gchar *self_origin)
 {
-  const gchar *default_src = "default-src 'self'";
+  const gchar *default_src = "default-src 'self' blob:";
   const gchar *form_action = "form-action 'self'";
   const gchar *base_uri = "base-uri 'self'";
   const gchar *object_src = "object-src 'none'";
