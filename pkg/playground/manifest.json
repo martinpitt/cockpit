@@ -43,6 +43,5 @@
             "label": "Logs Box"
         }
     },
-    "preload": [ "preloaded" ],
     "content-security-policy": "img-src 'self' data:"
 }
