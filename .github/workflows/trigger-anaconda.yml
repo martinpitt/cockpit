@@ -55,4 +55,4 @@ jobs:
           test/common/make-bots
           mkdir -p ~/.config/cockpit-dev
           echo ${{ github.token }} >> ~/.config/cockpit-dev/github-token
-          bots/tests-trigger ${{ github.event.number }} fedora-rawhide-boot/cockpit-pr-${{ github.event.number }}@rhinstaller/anaconda
+          bots/tests-trigger --allow ${{ github.event.number }} fedora-rawhide-boot/cockpit-pr-${{ github.event.number }}@rhinstaller/anaconda
