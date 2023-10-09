@@ -1,0 +1,49 @@
+name: anaconda
+on: pull_request
+jobs:
+  trigger:
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: read
+      statuses: write
+    container: registry.fedoraproject.org/fedora:rawhide
+    # this polls for a COPR build, which can take long
+    # timeout-minutes: 120 XXX
+    timeout-minutes: 5
+
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y git-core dnf-plugins-core || {
+            sleep 60
+            dnf install -y git-core dnf-plugins-core
+          }
+
+      - name: Clone repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR affects Anaconda
+        id: affected
+        run: |
+          git log --exit-code --stat origin/${{ github.event.pull_request.base.ref }}..HEAD -- src/cockpit pkg/storaged \
+          >&2 || echo "::set-output name=changed::true"
+
+      - name: Wait for packit COPR build
+        if: steps.affected.outputs.changed
+        run: |
+          for _ in $(seq 60); do
+              sleep 60;
+              if dnf copr enable -y packit/cockpit-project-cockpit-${{ github.event.number }} &&
+                 dnf info --refresh --repo='copr:*cockpit*' cockpit-bridge; then
+                  exit 0
+              fi
+          done
+          exit 1
+
+      - name: Trigger anaconda run
+        if: steps.affected.outputs.changed
+        run: |
+          tools/make-bots
+          bots/tests-trigger ${{ github.event.number }} fedora-rawhide-boot/cockpit-pr-${{ github.event.number }}@rhinstaller/anaconda
