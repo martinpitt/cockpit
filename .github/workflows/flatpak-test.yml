@@ -6,7 +6,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     permissions: {}
-    timeout-minutes: 300
+    timeout-minutes: 20
     steps:
       - name: Install required build and test dependencies
         run: |
@@ -37,5 +37,3 @@ jobs:
             dbus-run-session containers/flatpak/test/test-ssh
             dbus-run-session containers/flatpak/test/test-browser
           '
-      - uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
