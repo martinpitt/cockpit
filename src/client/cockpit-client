@@ -204,7 +204,6 @@ class CockpitClient(Gtk.Application):
                              '***DANGEROUS*** Allow anyone to use your ssh credentials')
 
     def do_startup(self):
-        print("XXXX do _startup pid", os.getpid())
         Gtk.Application.do_startup(self)
 
         if Handy and hasattr(Handy, 'StyleManager'):
@@ -244,11 +243,9 @@ class CockpitClient(Gtk.Application):
         self.activate()
 
     def quit_action(self, *args):
-        print("XXXX quit", args)
         self.quit()
 
     def open_path(self, action, parameter, *args):
-        print("XXXX open_path", action, parameter, args)
         CockpitClientWindow(self, self.uri + parameter.get_string()).present()
 
     def do_activate(self):
