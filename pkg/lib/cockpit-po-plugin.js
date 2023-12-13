@@ -44,25 +44,20 @@ function get_plural_expr(statement) {
     return expr;
 }
 
-function buildFile(po_file, subdir, webpack_module, webpack_compilation, filename, filter) {
+function buildFile(po_file, subdir, webpack_module, webpack_compilation, out_path, filter) {
     return new Promise((resolve, reject) => {
-        // Read the PO file, remove fuzzy/disabled lines to avoid tripping up the validator
-        const po_data = fs.readFileSync(po_file, 'utf8')
-                .split('\n')
-                .filter(line => !line.startsWith('#~'))
-                .join('\n');
-        const parsed = gettext_parser.po.parse(po_data, { defaultCharset: 'utf8', validation: true });
+        const parsed = gettext_parser.po.parse(fs.readFileSync(po_file), 'utf8');
         delete parsed.translations[""][""]; // second header copy
 
         const rtl_langs = ["ar", "fa", "he", "ur"];
-        const dir = rtl_langs.includes(parsed.headers.Language) ? "rtl" : "ltr";
+        const dir = rtl_langs.includes(parsed.headers.language) ? "rtl" : "ltr";
 
         // cockpit.js only looks at "plural-forms" and "language"
         const chunks = [
             '{\n',
             ' "": {\n',
-            `  "plural-forms": ${get_plural_expr(parsed.headers['Plural-Forms'])},\n`,
-            `  "language": "${parsed.headers.Language}",\n`,
+            `  "plural-forms": ${get_plural_expr(parsed.headers['plural-forms'])},\n`,
+            `  "language": "${parsed.headers.language}",\n`,
             `  "language-direction": "${dir}"\n`,
             ' }'
         ];
@@ -95,7 +90,6 @@ function buildFile(po_file, subdir, webpack_module, webpack_compilation, filenam
         const wrapper = config.wrapper?.(subdir) || DEFAULT_WRAPPER;
         const output = wrapper.replace('PO_DATA', chunks.join('')) + '\n';
 
-        const out_path = path.join(subdir ? (subdir + '/') : '', filename);
         if (webpack_compilation)
             webpack_compilation.emitAsset(out_path, new webpack_module.sources.RawSource(output));
         else
@@ -122,9 +116,9 @@ function run(webpack_module, webpack_compilation) {
             promises.push(Promise.all([
                 // Separate translations for the manifest.json file and normal pages
                 buildFile(po_file, subdir, webpack_module, webpack_compilation,
-                          `po.${lang}.js`, str => !str.includes('manifest.json')),
+                          `${subdir}/po.${lang}.js`, str => !str.includes('manifest.json')),
                 buildFile(po_file, subdir, webpack_module, webpack_compilation,
-                          `po.manifest.${lang}.js`, str => str.includes('manifest.json'))
+                          `${subdir}/po.manifest.${lang}.js`, str => str.includes('manifest.json'))
             ]));
         }
     }
