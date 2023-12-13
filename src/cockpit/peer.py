@@ -99,11 +99,9 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
             #   - other transport exception
             init_message = await self.init_future
 
-        except (PeerExited, BrokenPipeError):
-            # These are fairly generic errors. PeerExited means that we observed the process exiting.
-            # BrokenPipeError means that we got EPIPE when attempting to write() to it. In both cases,
-            # the process is gone, but it's not clear why. If the connection process is still running,
-            # perhaps we'd get a better error message from it.
+        except PeerExited:
+            # This is a fairly generic error.  If the connection process is
+            # still running, perhaps we'd get a better error message from it.
             await connect_task
             # Otherwise, re-raise
             raise
@@ -118,7 +116,7 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
         if init_host is not None:
             logger.debug('  sending init message back, host %s', init_host)
             # Send "init" back
-            self.write_control(None, command='init', version=1, host=init_host, **kwargs)
+            self.write_control(command='init', version=1, host=init_host, **kwargs)
 
             # Thaw the queued messages
             self.thaw_endpoint()
@@ -182,7 +180,7 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
             else:
                 self.shutdown_endpoint(problem='terminated', message=f'Peer exited with status {exc.exit_code}')
         elif isinstance(exc, CockpitProblem):
-            self.shutdown_endpoint(exc.attrs)
+            self.shutdown_endpoint(problem=exc.problem, **exc.kwargs)
         else:
             self.shutdown_endpoint(problem='internal-error',
                                    message=f"[{exc.__class__.__name__}] {exc!s}")
@@ -209,7 +207,7 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
     def channel_control_received(self, channel: str, command: str, message: JsonObject) -> None:
         if self.init_future is not None:
             raise CockpitProtocolError('Received unexpected channel control message before init')
-        self.send_channel_control(channel, command, message)
+        self.send_channel_control(**message)
 
     def channel_data_received(self, channel: str, data: bytes) -> None:
         if self.init_future is not None:
@@ -219,7 +217,7 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
     # Forwarding data: from the router to the peer
     def do_channel_control(self, channel: str, command: str, message: JsonObject) -> None:
         assert self.init_future is None
-        self.write_control(message)
+        self.write_control(**message)
 
     def do_channel_data(self, channel: str, data: bytes) -> None:
         assert self.init_future is None
@@ -228,9 +226,6 @@ class Peer(CockpitProtocol, SubprocessProtocol, Endpoint):
     def do_kill(self, host: Optional[str], group: Optional[str]) -> None:
         assert self.init_future is None
         self.write_control(command='kill', host=host, group=group)
-
-    def do_close(self) -> None:
-        self.close()
 
 
 class ConfiguredPeer(Peer):

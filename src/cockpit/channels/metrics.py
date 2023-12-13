@@ -24,7 +24,6 @@ from collections import defaultdict
 from typing import Dict, List, NamedTuple, Optional, Set, Tuple, Union
 
 from ..channel import AsyncChannel, ChannelError
-from ..jsonutil import JsonList
 from ..samples import SAMPLERS, SampleDescription, Sampler, Samples
 
 logger = logging.getLogger(__name__)
@@ -89,7 +88,7 @@ class InternalMetricsChannel(AsyncChannel):
         self.samplers = {cls() for cls in sampler_classes}
 
     def send_meta(self, samples: Samples, timestamp: float):
-        metrics: JsonList = []
+        metrics = []
         for metricinfo in self.metrics:
             if metricinfo.desc.instanced:
                 metrics.append({
@@ -106,7 +105,13 @@ class InternalMetricsChannel(AsyncChannel):
                     'semantics': metricinfo.desc.semantics
                 })
 
-        self.send_json(source='internal', interval=self.interval, timestamp=timestamp * 1000, metrics=metrics)
+        meta = {
+            'timestamp': timestamp * 1000,
+            'interval': self.interval,
+            'source': 'internal',
+            'metrics': metrics
+        }
+        self.send_message(**meta)
         self.need_meta = False
 
     def sample(self):

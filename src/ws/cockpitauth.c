@@ -1113,18 +1113,8 @@ cockpit_session_launch (CockpitAuth *self,
                                   TRUE);
         }
 
-      /* split the command from the config */
-      gint argc;
-      g_auto(GStrv) argv = NULL;
-      if (!g_shell_parse_argv (command, &argc, &argv, error))
-        return NULL;
-
-      /* append the host */
-      argv = g_renew (char *, argv, argc + 1 + 1);
-      argv[argc++] = g_strdup (host ?: "localhost");
-      argv[argc] = NULL;
-
-      pipe = session_start_process ((const gchar **) argv, (const gchar **)env, capture_stderr);
+      const gchar *argv[] = { command, host ?: "localhost", NULL };
+      pipe = session_start_process (argv, (const gchar **)env, capture_stderr);
     }
   else if (unix_path != NULL)
     {
