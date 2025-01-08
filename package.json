@@ -1,5 +1,5 @@
 {
-  "name": "CockpitDevelopmentDependencies",
+  "name": "CockpitDevelopmentDependencieX",
   "description": "Cockpit isn't a Node package, these are devel time deps, not needed to build tarball either",
   "type": "module",
   "private": true,
