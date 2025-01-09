@@ -1,6 +1,6 @@
 name: flatpak-test
 on:
-  pull_request
+  push
 
 jobs:
   run:
@@ -40,3 +40,7 @@ jobs:
             dbus-run-session containers/flatpak/test/test-ssh
             dbus-run-session containers/flatpak/test/test-browser
           '
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
