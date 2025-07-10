@@ -1,6 +1,7 @@
 name: flatpak-test
 on:
-  pull_request
+  pull_request:
+  push:
 
 jobs:
   run:
