@@ -608,6 +608,13 @@ export function NetworkManagerModel() {
             };
         }
 
+        if (settings["802-11-wireless"]) {
+            result["802-11-wireless"] = {
+                ssid: get("802-11-wireless", "ssid"),
+                mode: get("802-11-wireless", "mode"),
+            };
+        }
+
         return result;
     }
 
@@ -780,6 +787,20 @@ export function NetworkManagerModel() {
             delete result.wireguard;
         }
 
+        if (settings["802-11-wireless"]) {
+            set("802-11-wireless", "ssid", 'ay', settings["802-11-wireless"].ssid);
+            set("802-11-wireless", "mode", 's', settings["802-11-wireless"].mode);
+        } else {
+            delete result["802-11-wireless"];
+        }
+
+        if (settings["802-11-wireless-security"]) {
+            set("802-11-wireless-security", "key-mgmt", 's', settings["802-11-wireless-security"]["key-mgmt"]);
+            set("802-11-wireless-security", "psk", 's', settings["802-11-wireless-security"].psk);
+        } else {
+            delete result["802-11-wireless-security"];
+        }
+
         return result;
     }
 
@@ -938,6 +959,37 @@ export function NetworkManagerModel() {
         }
     };
 
+    const type_AccessPoint = {
+        interfaces: [
+            "org.freedesktop.NetworkManager.AccessPoint"
+        ],
+
+        props: {
+            Flags: { def: 0 },
+            WpaFlags: { def: 0 },
+            RsnFlags: { def: 0 },
+            Ssid: { conv: utils.ssid_from_nm, def: "" },
+            Frequency: { def: 0 }, // MHz
+            HwAddress: { def: "" },
+            Mode: { def: 0 }, // 0=unknown, 1=adhoc, 2=infra, 3=ap, 4=mesh
+            MaxBitrate: { def: 0 }, // Kbit/s
+            Bandwidth: { def: 0 }, // MHz
+            Strength: { def: 0 },
+            LastSeen: { def: -1 }, // CLOCK_BOOTTIME seconds, -1 if never seen
+        },
+
+        exporters: [
+            function (obj) {
+                // Check if this SSID has a saved connection
+                obj.Known = (self.get_settings()?.Connections || []).some(con => {
+                    if (con.Settings?.["802-11-wireless"]?.ssid)
+                        return utils.ssid_from_nm(con.Settings["802-11-wireless"].ssid) == obj.Ssid;
+                    return false;
+                });
+            }
+        ]
+    };
+
     const type_Connection = {
         interfaces: [
             "org.freedesktop.NetworkManager.Settings.Connection"
@@ -1069,7 +1121,8 @@ export function NetworkManagerModel() {
             "org.freedesktop.NetworkManager.Device.Bond",
             "org.freedesktop.NetworkManager.Device.Team",
             "org.freedesktop.NetworkManager.Device.Bridge",
-            "org.freedesktop.NetworkManager.Device.Vlan"
+            "org.freedesktop.NetworkManager.Device.Vlan",
+            "org.freedesktop.NetworkManager.Device.Wireless"
         ],
 
         props: {
@@ -1089,6 +1142,9 @@ export function NetworkManagerModel() {
             Carrier: { def: true },
             Speed: { },
             Managed: { def: false },
+            // WiFi-specific properties
+            AccessPoints: { conv: conv_Array(conv_Object(type_AccessPoint)), def: [] },
+            ActiveAccessPoint: { conv: conv_Object(type_AccessPoint) },
             // See below for "Members"
         },
 
@@ -1114,8 +1170,67 @@ export function NetworkManagerModel() {
             disconnect: function () {
                 return call_object_method(this, 'org.freedesktop.NetworkManager.Device', 'Disconnect')
                         .then(() => undefined);
+            },
+
+            // Request a WiFi scan to populate this.AccessPoints
+            request_scan: function() {
+                utils.debug("request_scan: requesting scan for", this.Interface);
+                call_object_method(this, 'org.freedesktop.NetworkManager.Device.Wireless', 'RequestScan', {})
+                        .catch(error => {
+                            // RequestScan can fail if a scan was recently done, that's OK
+                            console.warn("request_scan: scan failed for", this.Interface + ":", error.toString());
+                        });
             }
-        }
+        },
+
+        exporters: [
+            function (obj) {
+                // WiFi device handling
+                if (obj.DeviceType === '802-11-wireless') {
+                    // Once we see any WiFi device, trigger one initial scan
+                    if (!priv(obj).wifi_scan_requested) {
+                        priv(obj).wifi_scan_requested = true;
+                        obj.request_scan();
+                        // Don't log until scan completes
+                        return;
+                    }
+
+                    // XXX DEBUG: log access points when count changes
+                    const activeSSID = obj.ActiveAccessPoint ? obj.ActiveAccessPoint.Ssid : null;
+                    const ap_count = obj.AccessPoints.length;
+                    const prev_count = priv(obj).prev_ap_count;
+
+                    if (prev_count === ap_count)
+                        return;
+
+                    priv(obj).prev_ap_count = ap_count;
+
+                    utils.debug("WiFi device", obj.Interface + ":", "state=" + obj.StateText + ",",
+                                "accessPoints=" + ap_count + ",", "connected=" + (activeSSID || "none"));
+
+                    if (ap_count > 0) {
+                        // Sort by signal strength (strongest first)
+                        const sortedAPs = [...obj.AccessPoints].sort((a, b) => b.Strength - a.Strength);
+
+                        utils.debug("Available networks on", obj.Interface, "(sorted by signal strength):");
+                        sortedAPs.forEach(ap => {
+                            const isActive = activeSSID && ap.Ssid === activeSSID ? " [CONNECTED]" : "";
+                            const security = (ap.WpaFlags || ap.RsnFlags) ? "secured" : "open";
+                            const rate = ap.MaxBitrate > 0 ? (ap.MaxBitrate / 1000) + " Mbit/s" : "unknown";
+                            const known = ap.Known ? " [KNOWN]" : "";
+                            utils.debug("  " + (ap.Ssid || "(hidden)"),
+                                        ap.Strength + "%",
+                                        (ap.Frequency / 1000).toFixed(2) + " GHz",
+                                        rate,
+                                        security + isActive + known,
+                                        "mode=" + ap.Mode
+                            );
+                        });
+                    }
+                    // XXX END DEBUG
+                }
+            }
+        ]
     };
 
     // The 'Interface' type does not correspond to any NetworkManager
@@ -1358,7 +1473,8 @@ export function NetworkManagerModel() {
         type_Ipv4Config,
         type_Ipv6Config,
         type_Connection,
-        type_ActiveConnection
+        type_ActiveConnection,
+        type_AccessPoint
     ]);
 
     get_object("/org/freedesktop/NetworkManager", type_Manager);
