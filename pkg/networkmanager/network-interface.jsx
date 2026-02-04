@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 import cockpit from "cockpit";
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/components/Breadcrumb/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardHeader, CardTitle } from '@patternfly/react-core/dist/esm/components/Card/index.js';
@@ -12,8 +12,9 @@ import { DescriptionList, DescriptionListDescription, DescriptionListGroup, Desc
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
-import { ConnectedIcon, LockIcon, LockOpenIcon, ThumbtackIcon } from "@patternfly/react-icons";
+import { ConnectedIcon, LockIcon, LockOpenIcon, RedoIcon, ThumbtackIcon } from "@patternfly/react-icons";
 
 import { ListingTable } from "cockpit-components-table.jsx";
 import { Privileged } from "cockpit-components-privileged.jsx";
@@ -58,10 +59,25 @@ export const NetworkInterfacePage = ({
     iface
 }) => {
     const model = useContext(ModelContext);
+    const [isScanning, setIsScanning] = useState(false);
+    const [prevAPCount, setPrevAPCount] = useState(0);
 
     const dev_name = iface.Name;
     const dev = iface.Device;
     const isManaged = iface && (!dev || is_managed(dev));
+
+    const accessPointCount = dev?.DeviceType === '802-11-wireless' ? (dev.AccessPoints?.length || 0) : 0;
+
+    // WiFi scanning: re-enable button when APs change or after timeout
+    useEffect(() => {
+        if (isScanning) {
+            if (accessPointCount !== prevAPCount && prevAPCount !== 0)
+                setIsScanning(false);
+            const timer = setTimeout(() => setIsScanning(false), 5000);
+            return () => clearTimeout(timer);
+        }
+        setPrevAPCount(accessPointCount);
+    }, [isScanning, accessPointCount, prevAPCount]);
 
     let ghostSettings = null;
     let connectionSettings = null;
@@ -627,7 +643,17 @@ export const NetworkInterfacePage = ({
 
         return (
             <Card isPlain id="network-interface-wifi-networks">
-                <CardHeader>
+                <CardHeader actions={{
+                    actions: (
+                        <Button variant="secondary"
+                                onClick={() => { setIsScanning(true); dev.request_scan() }}
+                                isDisabled={isScanning}
+                                icon={isScanning ? <Spinner size="md" /> : <RedoIcon />}
+                                aria-label={_("Refresh")}>
+                            {_("Refresh")}
+                        </Button>
+                    )
+                }}>
                     <CardTitle component="h2">{_("Available networks")}</CardTitle>
                 </CardHeader>
                 <ListingTable aria-label={_("Available networks")}
