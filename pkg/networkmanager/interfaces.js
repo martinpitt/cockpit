@@ -877,6 +877,21 @@ export function NetworkManagerModel() {
         }
     }
 
+    function access_point_mode_to_text(mode) {
+        switch (mode) {
+        // NM_802_11_MODE_ADHOC
+        case 1: return _("Adhoc");
+        // NM_802_11_MODE_INFRA
+        case 2: return _("Infra");
+        // NM_802_11_MODE_AP
+        case 3: return _("AP");
+        // NM_802_11_MODE_MESH
+        case 4: return _("Mesh");
+        // subsumes NM_802_11_MODE_UNKNOWN
+        default: return _("Unknown");
+        }
+    }
+
     const connections_by_uuid = { };
 
     function set_settings(obj, settings) {
@@ -971,7 +986,7 @@ export function NetworkManagerModel() {
             Ssid: { conv: utils.ssid_from_nm, def: "" },
             Frequency: { def: 0 }, // MHz
             HwAddress: { def: "" },
-            Mode: { def: 0 }, // 0=unknown, 1=adhoc, 2=infra, 3=ap, 4=mesh
+            Mode: { conv: access_point_mode_to_text, def: "" },
             MaxBitrate: { def: 0 }, // Kbit/s
             Bandwidth: { def: 0 }, // MHz
             Strength: { def: 0 },
@@ -1185,49 +1200,11 @@ export function NetworkManagerModel() {
 
         exporters: [
             function (obj) {
-                // WiFi device handling
-                if (obj.DeviceType === '802-11-wireless') {
-                    // Once we see any WiFi device, trigger one initial scan
-                    if (!priv(obj).wifi_scan_requested) {
-                        priv(obj).wifi_scan_requested = true;
-                        obj.request_scan();
-                        // Don't log until scan completes
-                        return;
-                    }
-
-                    // XXX DEBUG: log access points when count changes
-                    const activeSSID = obj.ActiveAccessPoint ? obj.ActiveAccessPoint.Ssid : null;
-                    const ap_count = obj.AccessPoints.length;
-                    const prev_count = priv(obj).prev_ap_count;
-
-                    if (prev_count === ap_count)
-                        return;
-
-                    priv(obj).prev_ap_count = ap_count;
-
-                    utils.debug("WiFi device", obj.Interface + ":", "state=" + obj.StateText + ",",
-                                "accessPoints=" + ap_count + ",", "connected=" + (activeSSID || "none"));
-
-                    if (ap_count > 0) {
-                        // Sort by signal strength (strongest first)
-                        const sortedAPs = [...obj.AccessPoints].sort((a, b) => b.Strength - a.Strength);
-
-                        utils.debug("Available networks on", obj.Interface, "(sorted by signal strength):");
-                        sortedAPs.forEach(ap => {
-                            const isActive = activeSSID && ap.Ssid === activeSSID ? " [CONNECTED]" : "";
-                            const security = (ap.WpaFlags || ap.RsnFlags) ? "secured" : "open";
-                            const rate = ap.MaxBitrate > 0 ? (ap.MaxBitrate / 1000) + " Mbit/s" : "unknown";
-                            const known = ap.Known ? " [KNOWN]" : "";
-                            utils.debug("  " + (ap.Ssid || "(hidden)"),
-                                        ap.Strength + "%",
-                                        (ap.Frequency / 1000).toFixed(2) + " GHz",
-                                        rate,
-                                        security + isActive + known,
-                                        "mode=" + ap.Mode
-                            );
-                        });
-                    }
-                    // XXX END DEBUG
+                // Once we see any WiFi device, trigger one initial scan
+                if (obj.DeviceType === '802-11-wireless' && !priv(obj).wifi_scan_requested) {
+                    utils.debug("triggering initial WiFi scan for", obj.Interface);
+                    priv(obj).wifi_scan_requested = true;
+                    obj.request_scan();
                 }
             }
         ]

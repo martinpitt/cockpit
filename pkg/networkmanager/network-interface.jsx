@@ -11,8 +11,11 @@ import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/in
 import { DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm } from "@patternfly/react-core/dist/esm/components/DescriptionList/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
+import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
+import { ConnectedIcon, LockIcon, LockOpenIcon, ThumbtackIcon } from "@patternfly/react-icons";
 
+import { ListingTable } from "cockpit-components-table.jsx";
 import { Privileged } from "cockpit-components-privileged.jsx";
 
 import { ModelContext } from './model-context.jsx';
@@ -567,6 +570,80 @@ export const NetworkInterfacePage = ({
         ];
     }
 
+    function renderWiFiNetworks() {
+        if (!dev || dev.DeviceType !== '802-11-wireless')
+            return null;
+
+        const accessPoints = dev.AccessPoints || [];
+        if (accessPoints.length === 0)
+            return null;
+
+        const activeSSID = dev.ActiveAccessPoint ? dev.ActiveAccessPoint.Ssid : null;
+
+        // Sort: connected network first, then by signal strength
+        const sortedAPs = [...accessPoints].sort((a, b) => {
+            const aIsActive = activeSSID && a.Ssid === activeSSID;
+            const bIsActive = activeSSID && b.Ssid === activeSSID;
+            if (aIsActive && !bIsActive) return -1;
+            if (!aIsActive && bIsActive) return 1;
+            return b.Strength - a.Strength;
+        });
+
+        const rows = sortedAPs.map((ap, index) => {
+            const isActive = activeSSID && ap.Ssid === activeSSID;
+            const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
+            const ssid = ap.Ssid || _("(hidden network)");
+
+            const securityIcon = isSecured
+                ? <LockIcon aria-label={_("secured")} />
+                : <LockOpenIcon aria-label={_("open")} />;
+
+            const nameColumn = (
+                <>
+                    {ssid}
+                    {isActive && <>{" "} <ConnectedIcon className="nm-icon-connected" /></>}
+                    {!isActive && ap.Known && <>{" "} <ThumbtackIcon className="nm-icon-known" /></>}
+                </>
+            );
+
+            const signalColumn = (
+                <Progress value={ap.Strength}
+                          label={ap.Strength + "%"}
+                          aria-label={_("Signal strength")}
+                          size="sm" />
+            );
+
+            return {
+                columns: [
+                    { title: nameColumn, header: true },
+                    { title: <>{securityIcon} {ap.Mode}</> },
+                    { title: signalColumn },
+                    { title: cockpit.format_bits_per_sec(ap.MaxBitrate * 1000) },
+                    { title: (ap.Frequency / 1000).toFixed(2) + " GHz" },
+                ],
+                props: { key: index, "data-ssid": ssid }
+            };
+        });
+
+        return (
+            <Card isPlain id="network-interface-wifi-networks">
+                <CardHeader>
+                    <CardTitle component="h2">{_("Available networks")}</CardTitle>
+                </CardHeader>
+                <ListingTable aria-label={_("Available networks")}
+                              variant='compact'
+                              columns={[
+                                  { title: _("Network"), header: true },
+                                  { title: _("Mode") },
+                                  { title: _("Signal") },
+                                  { title: _("Rate") },
+                                  { title: _("Frequency") },
+                              ]}
+                              rows={rows} />
+            </Card>
+        );
+    }
+
     function renderConnectionMembers(con) {
         const memberIfaces = { };
         const members = { };
@@ -737,6 +814,7 @@ export const NetworkInterfacePage = ({
                             : null
                         }
                     </Card>
+                    {renderWiFiNetworks()}
                     {renderConnectionMembers(iface.MainConnection)}
                 </Gallery>
             </PageSection>
