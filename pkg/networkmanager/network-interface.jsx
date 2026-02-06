@@ -4,21 +4,27 @@
  */
 import cockpit from "cockpit";
 import React, { useContext, useEffect, useState } from "react";
+import { useEvent } from "hooks";
 import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/components/Breadcrumb/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
 import { Card, CardBody, CardHeader, CardTitle } from '@patternfly/react-core/dist/esm/components/Card/index.js';
 import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm } from "@patternfly/react-core/dist/esm/components/DescriptionList/index.js";
+import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
+import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
 import { ConnectedIcon, DisconnectedIcon, LockIcon, LockOpenIcon, RedoIcon, ThumbtackIcon } from "@patternfly/react-icons";
 
 import { ListingTable } from "cockpit-components-table.jsx";
+import { ModalError } from 'cockpit-components-inline-notification.jsx';
 import { Privileged } from "cockpit-components-privileged.jsx";
 import { fmt_to_fragments } from 'utils.jsx';
+import { useDialogs } from "dialogs.jsx";
 
 import { ModelContext } from './model-context.jsx';
 import { NetworkInterfaceMembers } from "./network-interface-members.jsx";
@@ -51,6 +57,129 @@ import { get_ip_method_choices } from './ip-settings.jsx';
 
 const _ = cockpit.gettext;
 
+const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
+    const Dialogs = useDialogs();
+    const [password, setPassword] = useState("");
+    const [dialogError, setDialogError] = useState(null);
+    const [connecting, setConnecting] = useState(false);
+    const [activeConnection, setActiveConnection] = useState(null);
+    const [createdConnection, setCreatedConnection] = useState(null);
+    const idPrefix = "network-wifi-password";
+
+    useEvent(model, "changed");
+
+    // Monitor active connection state changes
+    useEffect(() => {
+        if (!activeConnection)
+            return;
+
+        const acState = activeConnection.State;
+        const currentSSID = dev.ActiveAccessPoint?.Ssid;
+
+        utils.debug("ActiveConnection state changed:", acState, "current SSID:", currentSSID, "target:", ssid);
+
+        // ActiveConnection states:
+        // 0 = UNKNOWN, 1 = ACTIVATING, 2 = ACTIVATED, 3 = DEACTIVATING, 4 = DEACTIVATED
+
+        if (acState === 2 && currentSSID === ssid) {
+            // Successfully connected
+            utils.debug("Connected successfully to", ssid);
+            Dialogs.close();
+        } else if (acState === 4) {
+            // Connection failed or was deactivated
+            utils.debug("Connection failed for", ssid);
+            setConnecting(false);
+            setDialogError(_("Failed to connect. Check your password."));
+            if (createdConnection) {
+                createdConnection.delete_()
+                        .catch(err => console.warn("Failed to delete connection:", err));
+            }
+            setActiveConnection(null);
+            setCreatedConnection(null);
+        }
+    }, [activeConnection?.State, dev.ActiveAccessPoint?.Ssid, ssid, createdConnection, Dialogs]);
+
+    const onSubmit = (ev) => {
+        if (ev) {
+            ev.preventDefault();
+        }
+
+        if (!password) {
+            setDialogError(_("Password required"));
+            return;
+        }
+
+        utils.debug("Connecting to", ssid, "with password");
+        setConnecting(true);
+        setDialogError(null);
+
+        const settings = {
+            connection: {
+                id: ssid,
+                type: "802-11-wireless",
+                autoconnect: true,
+            },
+            "802-11-wireless": {
+                ssid: utils.ssid_to_nm(ssid),
+                mode: "infrastructure",
+            },
+            "802-11-wireless-security": {
+                "key-mgmt": "wpa-psk",
+                psk: password,
+            }
+        };
+
+        dev.activate_with_settings(settings, ap)
+                .then(result => {
+                    utils.debug("Connection activation started");
+                    setCreatedConnection(result.connection);
+                    setActiveConnection(result.active_connection);
+                })
+                .catch(err => {
+                    setConnecting(false);
+                    setDialogError(typeof err === 'string' ? err : err.message);
+                });
+    };
+
+    return (
+        <Modal id={idPrefix + "-dialog"}
+               position="top"
+               variant="small"
+               isOpen
+               onClose={Dialogs.close}>
+            <ModalHeader title={cockpit.format(_("Connect to $0"), ssid)} />
+            <ModalBody>
+                <Form id={idPrefix + "-body"} onSubmit={onSubmit} isHorizontal>
+                    {dialogError && <ModalError dialogError={_("Failed to connect")} dialogErrorDetail={dialogError} />}
+                    <FormGroup fieldId={idPrefix + "-password-input"} label={_("Password")}>
+                        <TextInput id={idPrefix + "-password-input"}
+                                   type="password"
+                                   value={password}
+                                   onChange={(_event, value) => setPassword(value)}
+                                   autoFocus // eslint-disable-line jsx-a11y/no-autofocus
+                                   isDisabled={connecting} />
+                    </FormGroup>
+                </Form>
+            </ModalBody>
+            <ModalFooter>
+                <Button variant='primary'
+                        id={idPrefix + "-connect"}
+                        onClick={onSubmit}
+                        isLoading={connecting}
+                        isDisabled={connecting}>
+                    {_("Connect")}
+                </Button>
+                <Button variant='link'
+                        id={idPrefix + "-cancel"}
+                        onClick={Dialogs.close}
+                        isDisabled={connecting}>
+                    {_("Cancel")}
+                </Button>
+            </ModalFooter>
+        </Modal>
+    );
+};
+
 export const NetworkInterfacePage = ({
     privileged,
     operationInProgress,
@@ -60,6 +189,7 @@ export const NetworkInterfacePage = ({
     iface
 }) => {
     const model = useContext(ModelContext);
+    useEvent(model, "changed");
     const [isScanning, setIsScanning] = useState(false);
     const [prevAPCount, setPrevAPCount] = useState(0);
 
@@ -68,6 +198,8 @@ export const NetworkInterfacePage = ({
     const isManaged = iface && (!dev || is_managed(dev));
 
     const accessPointCount = dev?.DeviceType === '802-11-wireless' ? (dev.AccessPoints?.length || 0) : 0;
+
+    const Dialogs = useDialogs();
 
     // WiFi scanning: re-enable button when APs change or after timeout
     useEffect(() => {
@@ -597,6 +729,62 @@ export const NetworkInterfacePage = ({
 
         const activeSSID = dev.ActiveAccessPoint ? dev.ActiveAccessPoint.Ssid : null;
 
+        function connectToAP(ap) {
+            const ssid = ap.Ssid || "";
+            utils.debug("Connecting to", ssid);
+
+            // Check if there's an existing connection for this SSID
+            // Search through all system connections, not just interface-specific ones
+            const allConnections = model.get_settings()?.Connections || [];
+            utils.debug("All system connections:", allConnections.length);
+
+            const existingConnection = allConnections.find(con => {
+                const settings = con.Settings;
+                if (settings && settings["802-11-wireless"]) {
+                    const conSSID = utils.ssid_from_nm(settings["802-11-wireless"].ssid);
+                    utils.debug("  Connection:", settings.connection.id, "SSID:", conSSID, "vs", ssid);
+                    return conSSID === ssid;
+                }
+                return false;
+            });
+
+            if (existingConnection) {
+                // Activate existing connection (which already has password if needed)
+                utils.debug("Activating existing connection for", ssid);
+                existingConnection.activate(dev, ap)
+                        .then(() => utils.debug("Connected successfully to", ssid))
+                        .catch(show_unexpected_error);
+            } else {
+                // Create new connection
+                const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
+
+                if (isSecured) {
+                    // Show password dialog for secured networks
+                    utils.debug("Showing password dialog for", ssid);
+                    Dialogs.show(<WiFiPasswordDialog dev={dev} ap={ap} ssid={ssid} model={model} />);
+                    return;
+                }
+
+                // Create new connection for open networks
+                utils.debug("Creating new connection for", ssid);
+                const settings = {
+                    connection: {
+                        id: ssid,
+                        type: "802-11-wireless",
+                        autoconnect: true,
+                    },
+                    "802-11-wireless": {
+                        ssid: utils.ssid_to_nm(ssid),
+                        mode: "infrastructure",
+                    }
+                };
+
+                dev.activate_with_settings(settings, ap)
+                        .then(result => utils.debug("Connected successfully to", ssid))
+                        .catch(show_unexpected_error);
+            }
+        }
+
         // Sort: connected network first, then by signal strength
         const sortedAPs = [...accessPoints].sort((a, b) => {
             const aIsActive = activeSSID && a.Ssid === activeSSID;
@@ -649,7 +837,20 @@ export const NetworkInterfacePage = ({
                         </Button>
                     </Privileged>
                 )
-                : null;
+                : (
+                    <Privileged allowed={privileged}
+                                tooltipId={"wifi-connect-" + index}
+                                excuse={_("Not permitted to connect to network")}>
+                        <Button variant="secondary"
+                                size="sm"
+                                icon={<ConnectedIcon />}
+                                isDisabled={!privileged}
+                                onClick={() => connectToAP(ap)}
+                                aria-label={_("Connect")}>
+                            {_("Connect")}
+                        </Button>
+                    </Privileged>
+                );
 
             return {
                 columns: [

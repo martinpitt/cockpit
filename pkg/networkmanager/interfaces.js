@@ -1115,7 +1115,8 @@ export function NetworkManagerModel() {
         props: {
             Connection: { conv: conv_Object(type_Connection) },
             Ip4Config: { conv: conv_Object(type_Ipv4Config) },
-            Ip6Config: { conv: conv_Object(type_Ipv6Config) }
+            Ip6Config: { conv: conv_Object(type_Ipv6Config) },
+            State: { def: 0 }
             // See below for "Group"
         },
 
@@ -1176,7 +1177,10 @@ export function NetworkManagerModel() {
                     return call_object_method(get_object("/org/freedesktop/NetworkManager", type_Manager),
                                               "org.freedesktop.NetworkManager", "AddAndActivateConnection",
                                               settings_to_nm(settings), objpath(this), objpath(specific_object))
-                            .then(([path, active_connection]) => active_connection);
+                            .then(([path, active_connection_path]) => ({
+                                connection: get_object(path, type_Connection),
+                                active_connection: get_object(active_connection_path, type_ActiveConnection)
+                            }));
                 } catch (e) {
                     return Promise.reject(e);
                 }
