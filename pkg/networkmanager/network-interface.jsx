@@ -14,16 +14,17 @@ import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/e
 import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
-import { ConnectedIcon, LockIcon, LockOpenIcon, RedoIcon, ThumbtackIcon } from "@patternfly/react-icons";
+import { ConnectedIcon, DisconnectedIcon, LockIcon, LockOpenIcon, RedoIcon, ThumbtackIcon } from "@patternfly/react-icons";
 
 import { ListingTable } from "cockpit-components-table.jsx";
 import { Privileged } from "cockpit-components-privileged.jsx";
+import { fmt_to_fragments } from 'utils.jsx';
 
 import { ModelContext } from './model-context.jsx';
 import { NetworkInterfaceMembers } from "./network-interface-members.jsx";
 import { NetworkAction } from './dialogs-common.jsx';
 import { NetworkPlots } from "./plots";
-import { fmt_to_fragments } from 'utils.jsx';
+import * as utils from "./utils.js";
 
 import {
     array_join,
@@ -629,6 +630,27 @@ export const NetworkInterfacePage = ({
                           size="sm" />
             );
 
+            const actionColumn = isActive
+                ? (
+                    <Privileged allowed={privileged}
+                                tooltipId={"wifi-disconnect-" + index}
+                                excuse={_("Not permitted to disconnect network")}>
+                        <Button variant="danger"
+                                size="sm"
+                                icon={<DisconnectedIcon />}
+                                isDisabled={!privileged}
+                                onClick={() => {
+                                    dev.disconnect()
+                                            .then(() => utils.debug("Disconnected successfully from", ssid))
+                                            .catch(show_unexpected_error);
+                                }}
+                                aria-label={_("Disconnect")}>
+                            {_("Disconnect")}
+                        </Button>
+                    </Privileged>
+                )
+                : null;
+
             return {
                 columns: [
                     { title: nameColumn, header: true },
@@ -636,6 +658,7 @@ export const NetworkInterfacePage = ({
                     { title: signalColumn },
                     { title: cockpit.format_bits_per_sec(ap.MaxBitrate * 1000) },
                     { title: (ap.Frequency / 1000).toFixed(2) + " GHz" },
+                    { title: actionColumn },
                 ],
                 props: { key: index, "data-ssid": ssid }
             };
@@ -664,6 +687,7 @@ export const NetworkInterfacePage = ({
                                   { title: _("Signal") },
                                   { title: _("Rate") },
                                   { title: _("Frequency") },
+                                  { title: "", props: { screenReaderText: _("Actions") } },
                               ]}
                               rows={rows} />
             </Card>
