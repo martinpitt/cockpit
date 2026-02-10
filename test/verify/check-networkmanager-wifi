@@ -77,6 +77,12 @@ ssid=OpenNet""")
         b.wait_visible("#networking")
 
         self.wait_for_iface(self.iface, active=False)
+
+        # Details column shows correct number of networks
+        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        # Not connected to anything
+        b.wait_not_present(f"tr[data-interface='{self.iface}'] .pf-m-success")
+
         self.select_iface(self.iface)
         b.wait_visible("#network-interface")
         self.wait_for_iface_setting("Status", "Inactive")
@@ -108,6 +114,13 @@ ssid=OpenNet""")
         # moves to top of table
         b.wait_in_text("table[aria-label='Available networks'] tbody:first-of-type", "OpenNet")
 
+        # Overview shows connected network
+        b.click("#network-interface nav a:contains('Networking')")
+        b.wait_visible("#networking")
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details'] .pf-v6-c-label.pf-m-success", "OpenNet")
+        self.select_iface(self.iface)
+
         # Disconnect
         b.click("tr[data-ssid='OpenNet'] button")
         b.wait_text("tr[data-ssid='OpenNet'] button", "Connect")
@@ -118,6 +131,13 @@ ssid=OpenNet""")
         self.wait_for_iface_setting("Status", "Inactive")
         # moves back to bottom of table
         b.wait_in_text("table[aria-label='Available networks'] tbody:nth-of-type(3)", "OpenNet")
+
+        # Overview shows disconnected
+        b.click("#network-interface nav a:contains('Networking')")
+        b.wait_visible("#networking")
+        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        b.wait_not_present(f"tr[data-interface='{self.iface}'] .pf-v6-c-label.pf-m-success")
+        self.select_iface(self.iface)
 
         # Connect to ZE WIFI!
         b.click("tr[data-ssid='ZE WIFI!'] button")
