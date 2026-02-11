@@ -18,7 +18,15 @@ import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/in
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
-import { ConnectedIcon, DisconnectedIcon, LockIcon, LockOpenIcon, RedoIcon, ThumbtackIcon } from "@patternfly/react-icons";
+import {
+    ConnectedIcon,
+    DisconnectedIcon,
+    LockIcon,
+    LockOpenIcon,
+    RedoIcon,
+    ThumbtackIcon,
+    TrashIcon
+} from "@patternfly/react-icons";
 
 import { ListingTable } from "cockpit-components-table.jsx";
 import { ModalError } from 'cockpit-components-inline-notification.jsx';
@@ -729,60 +737,57 @@ export const NetworkInterfacePage = ({
 
         const activeSSID = dev.ActiveAccessPoint ? dev.ActiveAccessPoint.Ssid : null;
 
+        function forgetNetwork(ap) {
+            const ssid = ap.Ssid || "";
+            utils.debug("Forgetting network", ssid);
+
+            if (ap.Connection) {
+                ap.Connection.delete_()
+                        .then(() => utils.debug("Forgot network", ssid))
+                        .catch(show_unexpected_error);
+            }
+        }
+
         function connectToAP(ap) {
             const ssid = ap.Ssid || "";
             utils.debug("Connecting to", ssid);
 
-            // Check if there's an existing connection for this SSID
-            // Search through all system connections, not just interface-specific ones
-            const allConnections = model.get_settings()?.Connections || [];
-            utils.debug("All system connections:", allConnections.length);
-
-            const existingConnection = allConnections.find(con => {
-                const settings = con.Settings;
-                if (settings && settings["802-11-wireless"]) {
-                    const conSSID = utils.ssid_from_nm(settings["802-11-wireless"].ssid);
-                    utils.debug("  Connection:", settings.connection.id, "SSID:", conSSID, "vs", ssid);
-                    return conSSID === ssid;
-                }
-                return false;
-            });
-
-            if (existingConnection) {
+            if (ap.Connection) {
                 // Activate existing connection (which already has password if needed)
                 utils.debug("Activating existing connection for", ssid);
-                existingConnection.activate(dev, ap)
+                ap.Connection.activate(dev, ap)
                         .then(() => utils.debug("Connected successfully to", ssid))
                         .catch(show_unexpected_error);
-            } else {
-                // Create new connection
-                const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
-
-                if (isSecured) {
-                    // Show password dialog for secured networks
-                    utils.debug("Showing password dialog for", ssid);
-                    Dialogs.show(<WiFiPasswordDialog dev={dev} ap={ap} ssid={ssid} model={model} />);
-                    return;
-                }
-
-                // Create new connection for open networks
-                utils.debug("Creating new connection for", ssid);
-                const settings = {
-                    connection: {
-                        id: ssid,
-                        type: "802-11-wireless",
-                        autoconnect: true,
-                    },
-                    "802-11-wireless": {
-                        ssid: utils.ssid_to_nm(ssid),
-                        mode: "infrastructure",
-                    }
-                };
-
-                dev.activate_with_settings(settings, ap)
-                        .then(result => utils.debug("Connected successfully to", ssid))
-                        .catch(show_unexpected_error);
+                return;
             }
+
+            // Create new connection
+            const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
+
+            if (isSecured) {
+                // Show password dialog for secured networks
+                utils.debug("Showing password dialog for", ssid);
+                Dialogs.show(<WiFiPasswordDialog dev={dev} ap={ap} ssid={ssid} model={model} />);
+                return;
+            }
+
+            // Create new connection for open networks
+            utils.debug("Creating new connection for", ssid);
+            const settings = {
+                connection: {
+                    id: ssid,
+                    type: "802-11-wireless",
+                    autoconnect: true,
+                },
+                "802-11-wireless": {
+                    ssid: utils.ssid_to_nm(ssid),
+                    mode: "infrastructure",
+                }
+            };
+
+            dev.activate_with_settings(settings, ap)
+                    .then(result => utils.debug("Connected successfully to", ssid))
+                    .catch(show_unexpected_error);
         }
 
         // Sort: connected network first, then by signal strength
@@ -807,7 +812,7 @@ export const NetworkInterfacePage = ({
                 <>
                     {ssid}
                     {isActive && <>{" "} <ConnectedIcon className="nm-icon-connected" /></>}
-                    {!isActive && ap.Known && <>{" "} <ThumbtackIcon className="nm-icon-known" /></>}
+                    {!isActive && ap.Connection && <>{" "} <ThumbtackIcon className="nm-icon-known" /></>}
                 </>
             );
 
@@ -838,18 +843,37 @@ export const NetworkInterfacePage = ({
                     </Privileged>
                 )
                 : (
-                    <Privileged allowed={privileged}
-                                tooltipId={"wifi-connect-" + index}
-                                excuse={_("Not permitted to connect to network")}>
-                        <Button variant="secondary"
-                                size="sm"
-                                icon={<ConnectedIcon />}
-                                isDisabled={!privileged}
-                                onClick={() => connectToAP(ap)}
-                                aria-label={_("Connect")}>
-                            {_("Connect")}
-                        </Button>
-                    </Privileged>
+                    <>
+                        <Privileged allowed={privileged}
+                                    tooltipId={"wifi-connect-" + index}
+                                    excuse={_("Not permitted to connect to network")}>
+                            <Button variant="secondary"
+                                    size="sm"
+                                    icon={<ConnectedIcon />}
+                                    isDisabled={!privileged}
+                                    onClick={() => connectToAP(ap)}
+                                    aria-label={_("Connect")}>
+                                {_("Connect")}
+                            </Button>
+                        </Privileged>
+                        {ap.Connection && (
+                            <>
+                                {" "}
+                                <Privileged allowed={privileged}
+                                            tooltipId={"wifi-forget-" + index}
+                                            excuse={_("Not permitted to forget network")}>
+                                    <Button variant="danger"
+                                            size="sm"
+                                            icon={<TrashIcon />}
+                                            isDisabled={!privileged}
+                                            onClick={() => forgetNetwork(ap)}
+                                            aria-label={_("Forget")}>
+                                        {_("Forget")}
+                                    </Button>
+                                </Privileged>
+                            </>
+                        )}
+                    </>
                 );
 
             return {

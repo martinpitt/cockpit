@@ -192,6 +192,20 @@ ssid=OpenNet""")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
         self.assertIn("OpenNet", m.execute("nmcli d show wlan1 | grep GENERAL.CONNECTION"))
 
+        # Forget ZE WIFI! network
+        b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Forget']")
+        # Known icon disappears
+        b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-known")
+        b.wait_not_present("tr[data-ssid='ZE WIFI!'] button[aria-label='Forget']")
+        # Try to connect again - should ask for password; cancel
+        b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
+        b.wait_in_text("#network-wifi-password-dialog", "Connect to ZE WIFI!")
+        b.click("#network-wifi-password-cancel")
+        b.wait_not_present("#network-wifi-password-dialog")
+        # Cancelling does not create a known connection
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
+        b.wait_not_in_text("tr[data-ssid='ZE WIFI!']", "Forget")
+
         # WiFi kill switch: detected networks disappear
         m.execute("nmcli radio wifi off")
         self.addCleanup(m.execute, "nmcli radio wifi on")
@@ -201,12 +215,15 @@ ssid=OpenNet""")
         b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "")
 
         m.execute("nmcli radio wifi on")
-        # NM will now connect to OpenNet or ZE WIFI! automatically, but that's not predictable
+        # NM will now connect to OpenNet automatically
         b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
         self.select_iface(self.iface)
-        b.wait_in_text("table[aria-label='Available networks']", "ZE WIFI!")
+        b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-connected")
         with b.wait_timeout(30):
             self.wait_for_iface_setting("Status", "10.0.42")
+        b.click("#network-interface nav a:contains('Networking')")
+        b.wait_visible("#networking")
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details'] .pf-v6-c-label.pf-m-success", "OpenNet")
 
 
 if __name__ == '__main__':

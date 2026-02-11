@@ -995,8 +995,8 @@ export function NetworkManagerModel() {
 
         exporters: [
             function (obj) {
-                // Check if this SSID has a saved connection
-                obj.Known = (self.get_settings()?.Connections || []).some(con => {
+                // Find connection for this SSID (undefined if none exists)
+                obj.Connection = (self.get_settings()?.Connections || []).find(con => {
                     if (con.Settings?.["802-11-wireless"]?.ssid)
                         return utils.ssid_from_nm(con.Settings["802-11-wireless"].ssid) == obj.Ssid;
                     return false;
