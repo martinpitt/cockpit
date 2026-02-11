@@ -94,19 +94,19 @@ ssid=OpenNet""")
         # sadly, mac80211_hwsim's data rate reporting is flaky, so just ensure at least one of our networks is correct
         b.wait_in_text("table[aria-label='Available networks']", "54 Mbps")
         b.wait_visible("tr[data-ssid='ZE WIFI!'] [data-label='Mode'] [aria-label='secured']")
-        b.wait_text("tr[data-ssid='ZE WIFI!'] button", "Connect")
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         # No known network yet
         b.wait_not_present(".nm-icon-known")
 
         b.wait_visible("tr[data-ssid='PrivateNet'] [data-label='Mode'] [aria-label='secured']")
-        b.wait_text("tr[data-ssid='PrivateNet'] button", "Connect")
+        b.wait_visible("tr[data-ssid='PrivateNet'] button[aria-label='Connect']")
 
         b.wait_visible("tr[data-ssid='OpenNet'] [data-label='Mode'] [aria-label='open']")
-        b.wait_text("tr[data-ssid='OpenNet'] button", "Connect")
+        b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
 
         # Connect to OpenNet
-        b.click("tr[data-ssid='OpenNet'] button")
-        b.wait_text("tr[data-ssid='OpenNet'] button", "Disconnect")
+        b.click("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
+        b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Disconnect']")
         # gets a "connected" icon
         b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-connected")
         # gets an IP
@@ -122,8 +122,8 @@ ssid=OpenNet""")
         self.select_iface(self.iface)
 
         # Disconnect
-        b.click("tr[data-ssid='OpenNet'] button")
-        b.wait_text("tr[data-ssid='OpenNet'] button", "Connect")
+        b.click("tr[data-ssid='OpenNet'] button[aria-label='Disconnect']")
+        b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
         # icon moves to "known" state
         b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-known")
         b.wait_not_present("tr[data-ssid='OpenNet'] .nm-icon-connected")
@@ -140,7 +140,7 @@ ssid=OpenNet""")
         self.select_iface(self.iface)
 
         # Connect to ZE WIFI!
-        b.click("tr[data-ssid='ZE WIFI!'] button")
+        b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         b.wait_in_text("#network-wifi-password-dialog", "Connect to ZE WIFI!")
         # wrong password
         b.set_input_text("#network-wifi-password-password-input", "wrong123")
@@ -154,15 +154,15 @@ ssid=OpenNet""")
         b.wait_not_present("#network-wifi-password-dialog")
 
         # connects, action changes
-        b.wait_text("tr[data-ssid='ZE WIFI!'] button", "Disconnect")
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Disconnect']")
         # gets a "connected" icon
         b.wait_visible("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
         # gets an IP
         self.wait_for_iface_setting("Status", "10.0.42")
 
         # Disconnect
-        b.click("tr[data-ssid='ZE WIFI!'] button")
-        b.wait_text("tr[data-ssid='ZE WIFI!'] button", "Connect")
+        b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Disconnect']")
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         # icon moves to "known" state
         b.wait_visible("tr[data-ssid='ZE WIFI!'] .nm-icon-known")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
@@ -170,24 +170,24 @@ ssid=OpenNet""")
         self.wait_for_iface_setting("Status", "Inactive")
 
         # NM now knows the connection and can re-connect without password query
-        b.click("tr[data-ssid='ZE WIFI!'] button")
+        b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         # icon moves to "connected" state
         b.wait_visible("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-known")
-        b.wait_text("tr[data-ssid='ZE WIFI!'] button", "Disconnect")
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Disconnect']")
         self.wait_for_iface_setting("Status", "10.0.42")
         # OpenNet is known but not connected
         b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-known")
 
         # connecting to OpenNet disconnects from ZE WIFI!
         self.assertIn("ZE WIFI!", m.execute("nmcli d show wlan1 | grep GENERAL.CONNECTION"))
-        b.click("tr[data-ssid='OpenNet'] button")
-        b.wait_text("tr[data-ssid='OpenNet'] button", "Disconnect")
+        b.click("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
+        b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Disconnect']")
         # OpenNet icon moves to "connected" state
         b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-connected")
         b.wait_not_present("tr[data-ssid='OpenNet'] .nm-icon-known")
         # ZE WIFI! moves to "known" state
-        b.wait_text("tr[data-ssid='ZE WIFI!'] button", "Connect")
+        b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         b.wait_visible("tr[data-ssid='ZE WIFI!'] .nm-icon-known")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
         self.assertIn("OpenNet", m.execute("nmcli d show wlan1 | grep GENERAL.CONNECTION"))
