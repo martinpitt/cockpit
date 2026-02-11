@@ -192,6 +192,22 @@ ssid=OpenNet""")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
         self.assertIn("OpenNet", m.execute("nmcli d show wlan1 | grep GENERAL.CONNECTION"))
 
+        # WiFi kill switch: detected networks disappear
+        m.execute("nmcli radio wifi off")
+        self.addCleanup(m.execute, "nmcli radio wifi on")
+        self.wait_for_iface_setting("Status", "Not available")
+        b.wait_not_present("table[aria-label='Available networks']")
+        b.click("#network-interface nav a:contains('Networking')")
+        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "")
+
+        m.execute("nmcli radio wifi on")
+        # NM will now connect to OpenNet or ZE WIFI! automatically, but that's not predictable
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        self.select_iface(self.iface)
+        b.wait_in_text("table[aria-label='Available networks']", "ZE WIFI!")
+        with b.wait_timeout(30):
+            self.wait_for_iface_setting("Status", "10.0.42")
+
 
 if __name__ == '__main__':
     testlib.test_main()
