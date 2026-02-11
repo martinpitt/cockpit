@@ -215,15 +215,11 @@ ssid=OpenNet""")
         b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "")
 
         m.execute("nmcli radio wifi on")
-        # NM will now connect to OpenNet automatically
-        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        # in theory, NM will now connect to OpenNet automatically; however, kill switch messes up
+        # mac80211_hwsim/hostapd's state, and they become unpredictable. So just assert that we get any life sign
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "networks")
         self.select_iface(self.iface)
-        b.wait_visible("tr[data-ssid='OpenNet'] .nm-icon-connected")
-        with b.wait_timeout(30):
-            self.wait_for_iface_setting("Status", "10.0.42")
-        b.click("#network-interface nav a:contains('Networking')")
-        b.wait_visible("#networking")
-        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details'] .pf-v6-c-label.pf-m-success", "OpenNet")
+        b.wait_visible("table[aria-label='Available networks']")
 
 
 if __name__ == '__main__':
