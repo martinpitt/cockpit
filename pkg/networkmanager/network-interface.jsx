@@ -882,7 +882,6 @@ export const NetworkInterfacePage = ({
                     { title: <>{securityIcon} {ap.Mode}</> },
                     { title: signalColumn },
                     { title: cockpit.format_bits_per_sec(ap.MaxBitrate * 1000) },
-                    { title: (ap.Frequency / 1000).toFixed(2) + " GHz" },
                     { title: actionColumn },
                 ],
                 props: { key: index, "data-ssid": ssid }
@@ -911,7 +910,6 @@ export const NetworkInterfacePage = ({
                                   { title: _("Mode") },
                                   { title: _("Signal") },
                                   { title: _("Rate") },
-                                  { title: _("Frequency") },
                                   { title: "", props: { screenReaderText: _("Actions") } },
                               ]}
                               rows={rows} />
