@@ -18,6 +18,7 @@ import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/in
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
+import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/index.js";
 import {
     ConnectedIcon,
     DisconnectedIcon,
@@ -31,6 +32,7 @@ import {
 import { ListingTable } from "cockpit-components-table.jsx";
 import { ModalError } from 'cockpit-components-inline-notification.jsx';
 import { Privileged } from "cockpit-components-privileged.jsx";
+import { distanceToNow } from "timeformat";
 import { fmt_to_fragments } from 'utils.jsx';
 import { useDialogs } from "dialogs.jsx";
 
@@ -808,13 +810,22 @@ export const NetworkInterfacePage = ({
                 ? <LockIcon aria-label={_("secured")} />
                 : <LockOpenIcon aria-label={_("open")} />;
 
-            const nameColumn = (
+            const nameContent = (
                 <>
                     {ssid}
                     {isActive && <>{" "} <ConnectedIcon className="nm-icon-connected" /></>}
                     {!isActive && ap.Connection && <>{" "} <ThumbtackIcon className="nm-icon-known" /></>}
                 </>
             );
+
+            const timestamp = ap.Connection?.Settings?.connection?.timestamp || 0;
+            const nameColumn = timestamp > 0
+                ? (
+                    <Tooltip content={cockpit.format(_("Last connected: $0"), distanceToNow(timestamp * 1000))}>
+                        <span>{nameContent}</span>
+                    </Tooltip>
+                )
+                : nameContent;
 
             const signalColumn = (
                 <Progress value={ap.Strength}
