@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader, CardTitle } from '@patternfly/react-core/di
 import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm } from "@patternfly/react-core/dist/esm/components/DescriptionList/index.js";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form/index.js";
+import { InputGroup, InputGroupItem } from "@patternfly/react-core/dist/esm/components/InputGroup/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
@@ -22,6 +23,8 @@ import { Tooltip } from "@patternfly/react-core/dist/esm/components/Tooltip/inde
 import {
     ConnectedIcon,
     DisconnectedIcon,
+    EyeIcon,
+    EyeSlashIcon,
     LockIcon,
     LockOpenIcon,
     RedoIcon,
@@ -75,6 +78,7 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
     const [connecting, setConnecting] = useState(false);
     const [activeConnection, setActiveConnection] = useState(null);
     const [createdConnection, setCreatedConnection] = useState(null);
+    const [passwordVisible, setPasswordVisible] = useState(false);
     const idPrefix = "network-wifi-password";
 
     useEvent(model, "changed");
@@ -163,12 +167,24 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
                 <Form id={idPrefix + "-body"} onSubmit={onSubmit} isHorizontal>
                     {dialogError && <ModalError dialogError={_("Failed to connect")} dialogErrorDetail={dialogError} />}
                     <FormGroup fieldId={idPrefix + "-password-input"} label={_("Password")}>
-                        <TextInput id={idPrefix + "-password-input"}
-                                   type="password"
-                                   value={password}
-                                   onChange={(_event, value) => setPassword(value)}
-                                   autoFocus // eslint-disable-line jsx-a11y/no-autofocus
-                                   isDisabled={connecting} />
+                        <InputGroup>
+                            <InputGroupItem isFill>
+                                <TextInput id={idPrefix + "-password-input"}
+                                           type={passwordVisible ? "text" : "password"}
+                                           value={password}
+                                           onChange={(_event, value) => setPassword(value)}
+                                           autoFocus // eslint-disable-line jsx-a11y/no-autofocus
+                                           isDisabled={connecting} />
+                            </InputGroupItem>
+                            <InputGroupItem>
+                                <Button variant="control"
+                                        aria-label={passwordVisible ? _("Hide password") : _("Show password")}
+                                        onClick={() => setPasswordVisible(!passwordVisible)}
+                                        isDisabled={connecting}>
+                                    {passwordVisible ? <EyeSlashIcon /> : <EyeIcon />}
+                                </Button>
+                            </InputGroupItem>
+                        </InputGroup>
                     </FormGroup>
                 </Form>
             </ModalBody>

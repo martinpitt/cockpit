@@ -142,8 +142,15 @@ ssid=OpenNet""")
         # Connect to ZE WIFI!
         b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         b.wait_in_text("#network-wifi-password-dialog", "Connect to ZE WIFI!")
-        # wrong password
+        # Test password reveal
         b.set_input_text("#network-wifi-password-password-input", "wrong123")
+        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "password")
+        b.click("#network-wifi-password-dialog button[aria-label='Show password']")
+        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "text")
+        self.assertEqual(b.val("#network-wifi-password-password-input"), "wrong123")
+        b.click("#network-wifi-password-dialog button[aria-label='Hide password']")
+        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "password")
+        # Submit with wrong password
         b.click("#network-wifi-password-connect")
         b.wait_visible("#network-wifi-password-connect.pf-m-in-progress")
         b.wait_visible("#network-wifi-password-connect:disabled")
