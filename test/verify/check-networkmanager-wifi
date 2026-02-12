@@ -95,7 +95,7 @@ wpa_passphrase=hidden99""")
         b.wait_visible("#network-interface")
         self.wait_for_iface_setting("Status", "Inactive")
 
-        # detects our four wifis
+        # detects our three visible wifis (plus one hidden)
         b.wait_in_text("table[aria-label='Available networks'] tbody:first-of-type", "ZE WIFI!")
         b.wait_text("tr[data-ssid='ZE WIFI!'] th", "ZE WIFI!")
         self.assertEqual(b.get_pf_progress_value("tr[data-ssid='ZE WIFI!'] [data-label='Signal']"), 100)
@@ -111,11 +111,6 @@ wpa_passphrase=hidden99""")
 
         b.wait_visible("tr[data-ssid='OpenNet'] [data-label='Mode'] [aria-label='open']")
         b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
-
-        # Hidden network appears (SSID unknown) but has no Connect button
-        b.wait_in_text("table[aria-label='Available networks']", "(hidden network)")
-        b.wait_visible("tr[data-ssid=''] [data-label='Mode'] [aria-label='secured']")
-        b.wait_not_present("tr[data-ssid=''] button[aria-label='Connect']")
 
         # Connect to OpenNet
         b.click("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
@@ -154,24 +149,30 @@ wpa_passphrase=hidden99""")
 
         # Connect to ZE WIFI!
         b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
-        b.wait_in_text("#network-wifi-password-dialog", "Connect to ZE WIFI!")
+        b.wait_in_text("#network-wifi-connect-dialog", "Connect to ZE WIFI!")
+        # Validation: Empty password
+        b.wait_val("#network-wifi-connect-password-input", "")
+        b.wait_in_text("#network-wifi-connect-dialog", "Password is required")
+        b.wait_visible("#network-wifi-connect-connect:disabled")
         # Test password reveal
-        b.set_input_text("#network-wifi-password-password-input", "wrong123")
-        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "password")
-        b.click("#network-wifi-password-dialog button[aria-label='Show password']")
-        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "text")
-        self.assertEqual(b.val("#network-wifi-password-password-input"), "wrong123")
-        b.click("#network-wifi-password-dialog button[aria-label='Hide password']")
-        self.assertEqual(b.attr("#network-wifi-password-password-input", "type"), "password")
+        b.set_input_text("#network-wifi-connect-password-input", "wrong123")
+        b.wait_not_in_text("#network-wifi-connect-dialog", "Password is required")
+        b.wait_visible("#network-wifi-connect-connect:not(:disabled)")
+        self.assertEqual(b.attr("#network-wifi-connect-password-input", "type"), "password")
+        b.click("#network-wifi-connect-dialog button[aria-label='Show password']")
+        self.assertEqual(b.attr("#network-wifi-connect-password-input", "type"), "text")
+        self.assertEqual(b.val("#network-wifi-connect-password-input"), "wrong123")
+        b.click("#network-wifi-connect-dialog button[aria-label='Hide password']")
+        self.assertEqual(b.attr("#network-wifi-connect-password-input", "type"), "password")
         # Submit with wrong password
-        b.click("#network-wifi-password-connect")
-        b.wait_visible("#network-wifi-password-connect.pf-m-in-progress")
-        b.wait_visible("#network-wifi-password-connect:disabled")
-        b.wait_in_text("#network-wifi-password-dialog", "Failed to connect. Check your password")
+        b.click("#network-wifi-connect-connect")
+        b.wait_visible("#network-wifi-connect-connect.pf-m-in-progress")
+        b.wait_visible("#network-wifi-connect-connect:disabled")
+        b.wait_in_text("#network-wifi-connect-dialog", "Failed to connect. Check your password")
         # correct password
-        b.set_input_text("#network-wifi-password-password-input", "12345678")
-        b.click("#network-wifi-password-connect")
-        b.wait_not_present("#network-wifi-password-dialog")
+        b.set_input_text("#network-wifi-connect-password-input", "12345678")
+        b.click("#network-wifi-connect-connect")
+        b.wait_not_present("#network-wifi-connect-dialog")
 
         # connects, action changes
         b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Disconnect']")
@@ -219,9 +220,9 @@ wpa_passphrase=hidden99""")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] button[aria-label='Forget']")
         # Try to connect again - should ask for password; cancel
         b.click("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
-        b.wait_in_text("#network-wifi-password-dialog", "Connect to ZE WIFI!")
-        b.click("#network-wifi-password-cancel")
-        b.wait_not_present("#network-wifi-password-dialog")
+        b.wait_in_text("#network-wifi-connect-dialog", "Connect to ZE WIFI!")
+        b.click("#network-wifi-connect-cancel")
+        b.wait_not_present("#network-wifi-connect-dialog")
         # Cancelling does not create a known connection
         b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         b.wait_not_in_text("tr[data-ssid='ZE WIFI!']", "Forget")
@@ -240,6 +241,102 @@ wpa_passphrase=hidden99""")
         b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "networks")
         self.select_iface(self.iface)
         b.wait_visible("table[aria-label='Available networks']")
+
+    def testHidden(self):
+        b = self.browser
+
+        self.login_and_go("/network")
+        b.wait_visible("#networking")
+
+        self.wait_for_iface(self.iface, active=False)
+        self.select_iface(self.iface)
+        b.wait_visible("#network-interface")
+
+        # Hidden network appears (SSID unknown) but has no Connect button
+        b.wait_in_text("table[aria-label='Available networks']", "(hidden network)")
+        b.wait_visible("tr[data-ssid=''] [data-label='Mode'] [aria-label='secured']")
+        b.wait_not_present("tr[data-ssid=''] button[aria-label='Connect']")
+
+        # Connect to hidden network via manual connection dialog
+        b.click("button:contains('Connect to hidden network')")
+        b.wait_in_text("#network-wifi-connect-dialog", "Connect to hidden network")
+
+        # Validation: Empty network name
+        b.wait_val("#network-wifi-connect-ssid-input", "")
+        b.wait_in_text("#network-wifi-connect-dialog", "Network name is required")
+        b.wait_visible("#network-wifi-connect-connect:disabled")
+
+        # Validation: Empty password with WPA security
+        b.set_input_text("#network-wifi-connect-ssid-input", "SomeNetwork")
+        b.wait_not_in_text("#network-wifi-connect-dialog", "Network name is required")
+        b.wait_val("#network-wifi-connect-password-input", "")
+        b.wait_in_text("#network-wifi-connect-dialog", "Password is required")
+        b.wait_visible("#network-wifi-connect-connect:disabled")
+
+        # Validation: No password required for open networks
+        b.set_val("#network-wifi-connect-security-select", "none")
+        b.wait_not_present("#network-wifi-connect-password-input")
+        b.wait_not_in_text("#network-wifi-connect-dialog", "Password is required")
+        b.wait_visible("#network-wifi-connect-connect:not(:disabled)")
+
+        # Reset for error cases
+        b.set_val("#network-wifi-connect-security-select", "wpa-psk")
+        b.wait_visible("#network-wifi-connect-password-input")
+
+        # Error case 1: Wrong SSID
+        b.set_input_text("#network-wifi-connect-ssid-input", "WrongSSID")
+        self.assertEqual(b.val("#network-wifi-connect-security-select"), "wpa-psk")
+        b.set_input_text("#network-wifi-connect-password-input", "password")
+        b.click("#network-wifi-connect-connect")
+        b.wait_visible("#network-wifi-connect-connect.pf-m-in-progress")
+        with b.wait_timeout(30):
+            b.wait_in_text("#network-wifi-connect-dialog", "Failed to connect")
+        b.wait_not_present("#network-wifi-connect-connect.pf-m-in-progress")
+
+        # Error case 2: Wrong security (open instead of WPA)
+        b.set_input_text("#network-wifi-connect-ssid-input", "HiddenNet")
+        b.set_val("#network-wifi-connect-security-select", "none")
+        b.wait_not_present("#network-wifi-connect-password-input")
+        b.click("#network-wifi-connect-connect")
+        b.wait_visible("#network-wifi-connect-connect.pf-m-in-progress")
+        with b.wait_timeout(30):
+            b.wait_in_text("#network-wifi-connect-dialog", "Failed to connect")
+        b.wait_not_present("#network-wifi-connect-connect.pf-m-in-progress")
+
+        # Error case 3: Wrong password
+        b.set_val("#network-wifi-connect-security-select", "wpa-psk")
+        b.wait_visible("#network-wifi-connect-password-input")
+        b.set_input_text("#network-wifi-connect-password-input", "wrongpassword")
+        b.click("#network-wifi-connect-connect")
+        b.wait_visible("#network-wifi-connect-connect.pf-m-in-progress")
+        b.wait_in_text("#network-wifi-connect-dialog", "Failed to connect")
+        b.wait_not_present("#network-wifi-connect-connect.pf-m-in-progress")
+
+        # Success case: Correct credentials
+        b.set_input_text("#network-wifi-connect-password-input", "hidden99")
+        b.click("#network-wifi-connect-connect")
+        b.wait_not_present("#network-wifi-connect-dialog")
+        # Hidden network connects and shows its real SSID
+        b.wait_visible("tr[data-ssid='HiddenNet'] button[aria-label='Disconnect']")
+        b.wait_visible("tr[data-ssid='HiddenNet'] .nm-icon-connected")
+        self.wait_for_iface_setting("Status", "10.0.42")
+        # Should not show (hidden network) anymore, only HiddenNet
+        b.wait_not_present("tr[data-ssid='']")
+
+        # Disconnect from hidden network - it remains known with its SSID
+        b.click("tr[data-ssid='HiddenNet'] button[aria-label='Disconnect']")
+        self.wait_for_iface_setting("Status", "Inactive")
+        b.wait_visible("tr[data-ssid='HiddenNet'] button[aria-label='Connect']")
+        b.wait_visible("tr[data-ssid='HiddenNet'] .nm-icon-known")
+        b.wait_not_present("tr[data-ssid='HiddenNet'] .nm-icon-connected")
+
+        # Forget hidden network - it disappears and becomes unknown (hidden network)
+        b.click("tr[data-ssid='HiddenNet'] button[aria-label='Forget']")
+        b.wait_not_present("tr[data-ssid='HiddenNet']")
+        b.wait_not_present("tr[data-ssid='HiddenNet'] .nm-icon-known")
+        # The generic hidden network entry has no Connect button
+        b.wait_visible("tr[data-ssid=''] [data-label='Mode'] [aria-label='secured']")
+        b.wait_not_present("tr[data-ssid=''] button[aria-label='Connect']")
 
 
 if __name__ == '__main__':

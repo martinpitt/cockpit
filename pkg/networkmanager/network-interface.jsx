@@ -11,7 +11,9 @@ import { Card, CardBody, CardHeader, CardTitle } from '@patternfly/react-core/di
 import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox/index.js";
 import { DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm } from "@patternfly/react-core/dist/esm/components/DescriptionList/index.js";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form/index.js";
+import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect/index.js";
 import { InputGroup, InputGroupItem } from "@patternfly/react-core/dist/esm/components/InputGroup/index.js";
+import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex/index.js";
 import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.js";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
@@ -27,12 +29,14 @@ import {
     EyeSlashIcon,
     LockIcon,
     LockOpenIcon,
+    PlusIcon,
     RedoIcon,
     ThumbtackIcon,
     TrashIcon
 } from "@patternfly/react-icons";
 
 import { SortByDirection } from '@patternfly/react-table';
+import { FormHelper } from "cockpit-components-form-helper";
 import { ListingTable } from "cockpit-components-table.jsx";
 import { ModalError } from 'cockpit-components-inline-notification.jsx';
 import { Privileged } from "cockpit-components-privileged.jsx";
@@ -71,15 +75,27 @@ import { get_ip_method_choices } from './ip-settings.jsx';
 
 const _ = cockpit.gettext;
 
-const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
+// known networks: with ssid; hidden networks: no ssid
+const WiFiConnectDialog = ({ dev, model, ssid: knownSsid, ap }) => {
     const Dialogs = useDialogs();
+    const [inputSsid, setInputSsid] = useState("");
+    const [security, setSecurity] = useState("wpa-psk");
     const [password, setPassword] = useState("");
+    const [passwordVisible, setPasswordVisible] = useState(false);
     const [dialogError, setDialogError] = useState(null);
     const [connecting, setConnecting] = useState(false);
     const [activeConnection, setActiveConnection] = useState(null);
     const [createdConnection, setCreatedConnection] = useState(null);
-    const [passwordVisible, setPasswordVisible] = useState(false);
-    const idPrefix = "network-wifi-password";
+
+    const isHidden = !knownSsid;
+    const ssid = knownSsid || inputSsid;
+    const idPrefix = "network-wifi-connect";
+
+    // Validation
+    const passwordRequired = !isHidden || security !== "none";
+    const ssidInvalid = isHidden && inputSsid.trim() === "";
+    const passwordInvalid = passwordRequired && password.trim() === "";
+    const canConnect = !ssidInvalid && !passwordInvalid;
 
     useEvent(model, "changed");
 
@@ -97,14 +113,12 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
         // 0 = UNKNOWN, 1 = ACTIVATING, 2 = ACTIVATED, 3 = DEACTIVATING, 4 = DEACTIVATED
 
         if (acState === 2 && currentSSID === ssid) {
-            // Successfully connected
             utils.debug("Connected successfully to", ssid);
             Dialogs.close();
         } else if (acState === 4) {
-            // Connection failed or was deactivated
             utils.debug("Connection failed for", ssid);
             setConnecting(false);
-            setDialogError(_("Failed to connect. Check your password."));
+            setDialogError(isHidden ? _("Failed to connect. Check your credentials.") : _("Failed to connect. Check your password."));
             if (createdConnection) {
                 createdConnection.delete_()
                         .catch(err => console.warn("Failed to delete connection:", err));
@@ -112,19 +126,14 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
             setActiveConnection(null);
             setCreatedConnection(null);
         }
-    }, [activeConnection?.State, dev.ActiveAccessPoint?.Ssid, ssid, createdConnection, Dialogs]);
+    }, [activeConnection, dev.ActiveAccessPoint?.Ssid, ssid, createdConnection, Dialogs, isHidden]);
 
     const onSubmit = (ev) => {
         if (ev) {
             ev.preventDefault();
         }
 
-        if (!password) {
-            setDialogError(_("Password required"));
-            return;
-        }
-
-        utils.debug("Connecting to", ssid, "with password");
+        utils.debug("Connecting to", ssid, isHidden ? `with security ${security}` : "with password");
         setConnecting(true);
         setDialogError(null);
 
@@ -138,13 +147,20 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
                 ssid: utils.ssid_to_nm(ssid),
                 mode: "infrastructure",
             },
-            "802-11-wireless-security": {
-                "key-mgmt": "wpa-psk",
-                psk: password,
-            }
         };
 
-        dev.activate_with_settings(settings, ap)
+        if (isHidden) {
+            settings["802-11-wireless"].hidden = true;
+        }
+
+        if (!isHidden || security !== "none") {
+            settings["802-11-wireless-security"] = {
+                "key-mgmt": isHidden ? security : "wpa-psk",
+                psk: password,
+            };
+        }
+
+        dev.activate_with_settings(settings, isHidden ? null : ap)
                 .then(result => {
                     utils.debug("Connection activation started");
                     setCreatedConnection(result.connection);
@@ -162,30 +178,57 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
                variant="small"
                isOpen
                onClose={Dialogs.close}>
-            <ModalHeader title={cockpit.format(_("Connect to $0"), ssid)} />
+            <ModalHeader title={isHidden ? _("Connect to hidden network") : cockpit.format(_("Connect to $0"), ssid)} />
             <ModalBody>
                 <Form id={idPrefix + "-body"} onSubmit={onSubmit} isHorizontal>
                     {dialogError && <ModalError dialogError={_("Failed to connect")} dialogErrorDetail={dialogError} />}
-                    <FormGroup fieldId={idPrefix + "-password-input"} label={_("Password")}>
-                        <InputGroup>
-                            <InputGroupItem isFill>
-                                <TextInput id={idPrefix + "-password-input"}
-                                           type={passwordVisible ? "text" : "password"}
-                                           value={password}
-                                           onChange={(_event, value) => setPassword(value)}
+                    {isHidden && (
+                        <>
+                            <FormGroup fieldId={idPrefix + "-ssid-input"} label={_("Network name")}>
+                                <TextInput id={idPrefix + "-ssid-input"}
+                                           type="text"
+                                           value={inputSsid}
+                                           onChange={(_event, value) => setInputSsid(value)}
+                                           validated={ssidInvalid ? "error" : "default"}
                                            autoFocus // eslint-disable-line jsx-a11y/no-autofocus
                                            isDisabled={connecting} />
-                            </InputGroupItem>
-                            <InputGroupItem>
-                                <Button variant="control"
-                                        aria-label={passwordVisible ? _("Hide password") : _("Show password")}
-                                        onClick={() => setPasswordVisible(!passwordVisible)}
-                                        isDisabled={connecting}>
-                                    {passwordVisible ? <EyeSlashIcon /> : <EyeIcon />}
-                                </Button>
-                            </InputGroupItem>
-                        </InputGroup>
-                    </FormGroup>
+                                <FormHelper helperTextInvalid={ssidInvalid ? _("Network name is required") : undefined} />
+                            </FormGroup>
+                            <FormGroup fieldId={idPrefix + "-security-select"} label={_("Security")}>
+                                <FormSelect id={idPrefix + "-security-select"}
+                                            value={security}
+                                            onChange={(_event, value) => setSecurity(value)}
+                                            isDisabled={connecting}>
+                                    <FormSelectOption value="none" label={_("None")} />
+                                    <FormSelectOption value="wpa-psk" label={_("WPA/WPA2 Personal")} />
+                                </FormSelect>
+                            </FormGroup>
+                        </>
+                    )}
+                    {(!isHidden || security !== "none") && (
+                        <FormGroup fieldId={idPrefix + "-password-input"} label={_("Password")}>
+                            <InputGroup>
+                                <InputGroupItem isFill>
+                                    <TextInput id={idPrefix + "-password-input"}
+                                               type={passwordVisible ? "text" : "password"}
+                                               value={password}
+                                               onChange={(_event, value) => setPassword(value)}
+                                               validated={passwordInvalid ? "error" : "default"}
+                                               autoFocus={!isHidden} // eslint-disable-line jsx-a11y/no-autofocus
+                                               isDisabled={connecting} />
+                                </InputGroupItem>
+                                <InputGroupItem>
+                                    <Button variant="control"
+                                            aria-label={passwordVisible ? _("Hide password") : _("Show password")}
+                                            onClick={() => setPasswordVisible(!passwordVisible)}
+                                            isDisabled={connecting}>
+                                        {passwordVisible ? <EyeSlashIcon /> : <EyeIcon />}
+                                    </Button>
+                                </InputGroupItem>
+                            </InputGroup>
+                            <FormHelper helperTextInvalid={passwordInvalid ? _("Password is required") : undefined} />
+                        </FormGroup>
+                    )}
                 </Form>
             </ModalBody>
             <ModalFooter>
@@ -193,7 +236,7 @@ const WiFiPasswordDialog = ({ dev, ap, ssid, model }) => {
                         id={idPrefix + "-connect"}
                         onClick={onSubmit}
                         isLoading={connecting}
-                        isDisabled={connecting}>
+                        isDisabled={connecting || !canConnect}>
                     {_("Connect")}
                 </Button>
                 <Button variant='link'
@@ -774,11 +817,28 @@ export const NetworkInterfacePage = ({
         if (!dev || dev.DeviceType !== '802-11-wireless')
             return null;
 
-        const accessPoints = dev.AccessPoints || [];
+        let accessPoints = dev.AccessPoints || [];
         if (accessPoints.length === 0)
             return null;
 
         const activeSSID = dev.ActiveAccessPoint ? dev.ActiveAccessPoint.Ssid : null;
+
+        // Deduplicate APs by MAC address, preferring ones with known SSID
+        // only if they are active or have a matching connection
+        const apByMac = new Map();
+        accessPoints.forEach(ap => {
+            const existing = apByMac.get(ap.HwAddress);
+            if (!existing) {
+                apByMac.set(ap.HwAddress, ap);
+            } else if (!existing.Ssid && ap.Ssid) {
+                // Prefer AP with SSID only if it's active or has a connection
+                const isActive = activeSSID && ap.Ssid === activeSSID;
+                if (isActive || ap.Connection) {
+                    apByMac.set(ap.HwAddress, ap);
+                }
+            }
+        });
+        accessPoints = Array.from(apByMac.values());
 
         function forgetNetwork(ap) {
             const ssid = ap.Ssid || "";
@@ -810,7 +870,7 @@ export const NetworkInterfacePage = ({
             if (isSecured) {
                 // Show password dialog for secured networks
                 utils.debug("Showing password dialog for", ssid);
-                Dialogs.show(<WiFiPasswordDialog dev={dev} ap={ap} ssid={ssid} model={model} />);
+                Dialogs.show(<WiFiConnectDialog dev={dev} ap={ap} ssid={ssid} model={model} />);
                 return;
             }
 
@@ -995,13 +1055,23 @@ export const NetworkInterfacePage = ({
             <Card isPlain id="network-interface-wifi-networks">
                 <CardHeader actions={{
                     actions: (
-                        <Button variant="secondary"
-                                onClick={() => { setIsScanning(true); dev.request_scan() }}
-                                isDisabled={isScanning}
-                                icon={isScanning ? <Spinner size="md" /> : <RedoIcon />}
-                                aria-label={_("Refresh")}>
-                            {_("Refresh")}
-                        </Button>
+                        <Flex>
+                            <FlexItem>
+                                <Button variant="secondary"
+                                        onClick={() => Dialogs.show(<WiFiConnectDialog dev={dev} model={model} />)}
+                                        icon={<PlusIcon />}>
+                                    {_("Connect to hidden network")}
+                                </Button>
+                            </FlexItem>
+                            <FlexItem>
+                                <Button variant="secondary"
+                                        onClick={() => { setIsScanning(true); dev.request_scan() }}
+                                        isDisabled={isScanning}
+                                        icon={isScanning ? <Spinner size="md" /> : <RedoIcon />}>
+                                    {_("Refresh")}
+                                </Button>
+                            </FlexItem>
+                        </Flex>
                     )
                 }}>
                     <CardTitle component="h2">{_("Available networks")}</CardTitle>
