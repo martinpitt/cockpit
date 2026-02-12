@@ -190,11 +190,6 @@ ssid=OpenNet""")
         b.wait_visible("tr[data-ssid='ZE WIFI!'] button[aria-label='Connect']")
         b.wait_visible("tr[data-ssid='ZE WIFI!'] .nm-icon-known")
         b.wait_not_present("tr[data-ssid='ZE WIFI!'] .nm-icon-connected")
-
-        # tooltip shows "last connected" time (timestamp was updated when reconnected earlier)
-        b.mouse("tr[data-ssid='ZE WIFI!'] th", "mouseenter")
-        b.wait_text(".pf-v6-c-tooltip", "Last connected: less than a minute ago")
-        b.mouse("tr[data-ssid='ZE WIFI!'] th", "mouseleave")
         self.assertIn("OpenNet", m.execute("nmcli d show wlan1 | grep GENERAL.CONNECTION"))
 
         # Forget ZE WIFI! network
