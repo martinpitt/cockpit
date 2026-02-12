@@ -18,6 +18,7 @@ import { Gallery } from "@patternfly/react-core/dist/esm/layouts/Gallery/index.j
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
 import { Page, PageBreadcrumb, PageSection } from "@patternfly/react-core/dist/esm/components/Page/index.js";
 import { Progress } from "@patternfly/react-core/dist/esm/components/Progress/index.js";
+import { SearchInput } from "@patternfly/react-core/dist/esm/components/SearchInput/index.js";
 import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner/index.js";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch/index.js";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput/index.js";
@@ -262,6 +263,7 @@ export const NetworkInterfacePage = ({
     useEvent(model, "changed");
     const [isScanning, setIsScanning] = useState(false);
     const [prevAPCount, setPrevAPCount] = useState(0);
+    const [networkSearch, setNetworkSearch] = useState("");
 
     const dev_name = iface.Name;
     const dev = iface.Device;
@@ -840,6 +842,16 @@ export const NetworkInterfacePage = ({
         });
         accessPoints = Array.from(apByMac.values());
 
+        // Filter by search term
+        const totalNetworks = accessPoints.length;
+        if (networkSearch) {
+            const searchLower = networkSearch.toLowerCase();
+            accessPoints = accessPoints.filter(ap => {
+                const ssid = ap.Ssid || _("(hidden network)");
+                return ssid.toLowerCase().includes(searchLower);
+            });
+        }
+
         function forgetNetwork(ap) {
             const ssid = ap.Ssid || "";
             utils.debug("Forgetting network", ssid);
@@ -1056,6 +1068,16 @@ export const NetworkInterfacePage = ({
                 <CardHeader actions={{
                     actions: (
                         <Flex>
+                            {totalNetworks > 3 && (
+                                <FlexItem>
+                                    <SearchInput
+                                        placeholder={_("Filter")}
+                                        value={networkSearch}
+                                        onChange={(_event, value) => setNetworkSearch(value)}
+                                        onClear={() => setNetworkSearch("")}
+                                    />
+                                </FlexItem>
+                            )}
                             <FlexItem>
                                 <Button variant="secondary"
                                         onClick={() => Dialogs.show(<WiFiConnectDialog dev={dev} model={model} />)}

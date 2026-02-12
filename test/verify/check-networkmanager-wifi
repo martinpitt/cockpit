@@ -112,6 +112,25 @@ wpa_passphrase=hidden99""")
         b.wait_visible("tr[data-ssid='OpenNet'] [data-label='Mode'] [aria-label='open']")
         b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
 
+        # Filter networks
+        b.set_input_text("#network-interface-wifi-networks input[placeholder='Filter']", "wifi")
+        # Should show only "ZE WIFI!"
+        b.wait_visible("tr[data-ssid='ZE WIFI!']")
+        b.wait_not_present("tr[data-ssid='PrivateNet']")
+        b.wait_not_present("tr[data-ssid='OpenNet']")
+
+        # Search for network that doesn't exist
+        b.set_input_text("#network-interface-wifi-networks input[placeholder='Filter']", "NoSuchNetwork")
+        b.wait_not_present("tr[data-ssid='ZE WIFI!']")
+        b.wait_not_present("tr[data-ssid='PrivateNet']")
+        b.wait_not_present("tr[data-ssid='OpenNet']")
+
+        # Clear search
+        b.click("#network-interface-wifi-networks button[aria-label='Reset']")
+        b.wait_visible("tr[data-ssid='ZE WIFI!']")
+        b.wait_visible("tr[data-ssid='PrivateNet']")
+        b.wait_visible("tr[data-ssid='OpenNet']")
+
         # Connect to OpenNet
         b.click("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
         b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Disconnect']")
