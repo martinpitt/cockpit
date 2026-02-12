@@ -129,8 +129,8 @@ ssid=OpenNet""")
         b.wait_not_present("tr[data-ssid='OpenNet'] .nm-icon-connected")
         # loses IP
         self.wait_for_iface_setting("Status", "Inactive")
-        # moves back to bottom of table
-        b.wait_in_text("table[aria-label='Available networks'] tbody:nth-of-type(3)", "OpenNet")
+        # still a known network, stays at the top of the table
+        b.wait_in_text("table[aria-label='Available networks'] tbody:nth-of-type(1)", "OpenNet")
 
         # Overview shows disconnected
         b.click("#network-interface nav a:contains('Networking')")

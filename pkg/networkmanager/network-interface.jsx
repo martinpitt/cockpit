@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 import cockpit from "cockpit";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { useEvent } from "hooks";
 import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core/dist/esm/components/Breadcrumb/index.js";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button/index.js";
@@ -29,6 +29,7 @@ import {
     TrashIcon
 } from "@patternfly/react-icons";
 
+import { SortByDirection } from '@patternfly/react-table';
 import { ListingTable } from "cockpit-components-table.jsx";
 import { ModalError } from 'cockpit-components-inline-notification.jsx';
 import { Privileged } from "cockpit-components-privileged.jsx";
@@ -221,6 +222,30 @@ export const NetworkInterfacePage = ({
         }
         setPrevAPCount(accessPointCount);
     }, [isScanning, accessPointCount, prevAPCount]);
+
+    // Track stable WiFi network order (by signal strength on first scan, preserved thereafter)
+    const stableAPOrder = useRef([]);
+
+    // Update stable AP order when APs are added/removed
+    useEffect(() => {
+        if (dev?.DeviceType !== '802-11-wireless')
+            return;
+
+        const accessPoints = dev.AccessPoints || [];
+        const currentMACs = new Set(accessPoints.map(ap => ap.HwAddress));
+        const stableMACs = new Set(stableAPOrder.current);
+
+        // Re-sort if APs added/removed
+        const needsResort = currentMACs.size !== stableMACs.size ||
+                           ![...currentMACs].every(mac => stableMACs.has(mac));
+
+        if (needsResort) {
+            // Sort by signal strength
+            const sorted = [...accessPoints].sort((a, b) => b.Strength - a.Strength);
+            // Store MAC addresses
+            stableAPOrder.current = sorted.map(ap => ap.HwAddress);
+        }
+    }, [dev?.AccessPoints, dev?.DeviceType]);
 
     let ghostSettings = null;
     let connectionSettings = null;
@@ -792,16 +817,61 @@ export const NetworkInterfacePage = ({
                     .catch(show_unexpected_error);
         }
 
-        // Sort: connected network first, then by signal strength
-        const sortedAPs = [...accessPoints].sort((a, b) => {
-            const aIsActive = activeSSID && a.Ssid === activeSSID;
-            const bIsActive = activeSSID && b.Ssid === activeSSID;
-            if (aIsActive && !bIsActive) return -1;
-            if (!aIsActive && bIsActive) return 1;
-            return b.Strength - a.Strength;
-        });
+        const networkSort = (rows, direction, columnIndex) => {
+            if (columnIndex === 0) {
+                // Network column: simple alphabetical sort, no special cases
+                const sorted = [...rows].sort((a, b) =>
+                    a.columns[0].sortKey.localeCompare(b.columns[0].sortKey)
+                );
+                return direction === SortByDirection.asc ? sorted : sorted.reverse();
+            } else {
+                // Signal column (default): group by connected > known > unknown, each sorted by signal strength
 
-        const rows = sortedAPs.map((ap, index) => {
+                // Separate into groups
+                const activeRows = [];
+                const knownRows = [];
+                const unknownRows = [];
+
+                rows.forEach(r => {
+                    const ssid = r.props["data-ssid"];
+                    const isActive = activeSSID && ssid === activeSSID;
+                    if (isActive) {
+                        activeRows.push(r);
+                    } else {
+                        // Check if known by looking for Connection in the AP data
+                        // We need to find the AP from accessPoints by matching MAC
+                        const mac = r.props.key;
+                        const ap = accessPoints.find(ap => ap.HwAddress === mac);
+                        if (ap?.Connection) {
+                            knownRows.push(r);
+                        } else {
+                            unknownRows.push(r);
+                        }
+                    }
+                });
+
+                // Sort each group by stable signal order
+                const sortByStableOrder = (a, b) => {
+                    const aMAC = a.props.key;
+                    const bMAC = b.props.key;
+                    const aOrder = stableAPOrder.current.indexOf(aMAC);
+                    const bOrder = stableAPOrder.current.indexOf(bMAC);
+                    if (aOrder === -1 || bOrder === -1) {
+                        return a.columns[2].sortKey.localeCompare(b.columns[2].sortKey);
+                    }
+                    return aOrder - bOrder;
+                };
+
+                knownRows.sort(sortByStableOrder);
+                unknownRows.sort(sortByStableOrder);
+
+                // Concatenate groups
+                const result = [...activeRows, ...knownRows, ...unknownRows];
+                return direction === SortByDirection.asc ? result : result.reverse();
+            }
+        };
+
+        const rows = accessPoints.map((ap, index) => {
             const isActive = activeSSID && ap.Ssid === activeSSID;
             const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
             const ssid = ap.Ssid || _("(hidden network)");
@@ -889,13 +959,13 @@ export const NetworkInterfacePage = ({
 
             return {
                 columns: [
-                    { title: nameColumn, header: true },
-                    { title: <>{securityIcon} {ap.Mode}</> },
-                    { title: signalColumn },
+                    { title: nameColumn, sortKey: ssid, header: true },
+                    { title: <>{securityIcon} {ap.Mode}</>, sortKey: ap.Mode },
+                    { title: signalColumn, sortKey: String(ap.Strength).padStart(3, '0') },
                     { title: cockpit.format_bits_per_sec(ap.MaxBitrate * 1000) },
                     { title: actionColumn },
                 ],
-                props: { key: index, "data-ssid": ssid }
+                props: { key: ap.HwAddress, "data-ssid": ssid }
             };
         });
 
@@ -917,12 +987,14 @@ export const NetworkInterfacePage = ({
                 <ListingTable aria-label={_("Available networks")}
                               variant='compact'
                               columns={[
-                                  { title: _("Network"), header: true },
+                                  { title: _("Network"), header: true, sortable: true },
                                   { title: _("Mode") },
-                                  { title: _("Signal") },
+                                  { title: _("Signal"), sortable: true },
                                   { title: _("Rate") },
                                   { title: "", props: { screenReaderText: _("Actions") } },
                               ]}
+                              sortBy={{ index: 2, direction: SortByDirection.asc }}
+                              sortMethod={networkSort}
                               rows={rows} />
             </Card>
         );
