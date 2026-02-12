@@ -890,7 +890,7 @@ export const NetworkInterfacePage = ({
         const rows = accessPoints.map((ap, index) => {
             const isActive = activeSSID && ap.Ssid === activeSSID;
             const isSecured = !!(ap.WpaFlags || ap.RsnFlags);
-            const ssid = ap.Ssid || _("(hidden network)");
+            const displaySsid = ap.Ssid || _("(hidden network)");
 
             const securityIcon = isSecured
                 ? <LockIcon aria-label={_("secured")} />
@@ -898,7 +898,7 @@ export const NetworkInterfacePage = ({
 
             const nameContent = (
                 <>
-                    {ssid}
+                    {displaySsid}
                     {isActive && <>{" "} <ConnectedIcon className="nm-icon-connected" /></>}
                     {!isActive && ap.Connection && <>{" "} <ThumbtackIcon className="nm-icon-known" /></>}
                 </>
@@ -920,8 +920,9 @@ export const NetworkInterfacePage = ({
                           size="sm" />
             );
 
-            const actionColumn = isActive
-                ? (
+            let actionColumn;
+            if (isActive) {
+                actionColumn = (
                     <Privileged allowed={privileged}
                                 tooltipId={"wifi-disconnect-" + index}
                                 excuse={_("Not permitted to disconnect network")}>
@@ -931,15 +932,19 @@ export const NetworkInterfacePage = ({
                                 isDisabled={!privileged}
                                 onClick={() => {
                                     dev.disconnect()
-                                            .then(() => utils.debug("Disconnected successfully from", ssid))
+                                            .then(() => utils.debug("Disconnected successfully from", displaySsid))
                                             .catch(show_unexpected_error);
                                 }}
                                 aria-label={_("Disconnect")}>
                             {_("Disconnect")}
                         </Button>
                     </Privileged>
-                )
-                : (
+                );
+            } else if (!ap.Ssid) {
+                // Hidden network - no Connect button
+                actionColumn = null;
+            } else {
+                actionColumn = (
                     <>
                         <Privileged allowed={privileged}
                                     tooltipId={"wifi-connect-" + index}
@@ -972,16 +977,17 @@ export const NetworkInterfacePage = ({
                         )}
                     </>
                 );
+            }
 
             return {
                 columns: [
-                    { title: nameColumn, sortKey: ssid, header: true },
+                    { title: nameColumn, sortKey: ap.Ssid, header: true },
                     { title: <>{securityIcon} {ap.Mode}</>, sortKey: ap.Mode },
                     { title: signalColumn, sortKey: String(ap.Strength).padStart(3, '0') },
                     { title: cockpit.format_bits_per_sec(ap.MaxBitrate * 1000) },
                     { title: actionColumn },
                 ],
-                props: { key: ap.HwAddress, "data-ssid": ssid }
+                props: { key: ap.HwAddress, "data-ssid": ap.Ssid }
             };
         });
 

@@ -40,7 +40,7 @@ ssid=ZE WIFI!
 wpa=2
 wpa_passphrase=12345678
 
-# Second network:-WPA2-PSK
+# Second network: WPA2-PSK
 bss=wlan0_0
 ssid=PrivateNet
 wpa=2
@@ -48,21 +48,29 @@ wpa_passphrase=secret123
 
 # Third network: Open
 bss=wlan0_1
-ssid=OpenNet""")
+ssid=OpenNet
+
+# Fourth network: Hidden WPA2-PSK
+bss=wlan0_2
+ssid=HiddenNet
+ignore_broadcast_ssid=1
+wpa=2
+wpa_passphrase=hidden99""")
         hostapd_pid = m.spawn("hostapd /tmp/hostapd.conf", "hostapd.log")
         self.addCleanup(m.execute, f"kill {hostapd_pid}")
 
         # give router ends an IP
-        m.execute("until [ -e /sys/class/net/wlan0_1 ]; do sleep 0.1; done")
+        m.execute("until [ -e /sys/class/net/wlan0_2 ]; do sleep 0.1; done")
         m.execute("ip addr add 10.0.42.1/24 dev wlan0")
         m.execute("ip addr add 10.0.42.2/24 dev wlan0_0")
         m.execute("ip addr add 10.0.42.3/24 dev wlan0_1")
+        m.execute("ip addr add 10.0.42.4/24 dev wlan0_2")
 
         # start DNS server
         dnsmasq_pid = m.spawn("dnsmasq --keep-in-foreground --log-queries --log-facility=- "
                               "--conf-file=/dev/null --dhcp-leasefile=/tmp/leases "
                               "--bind-interfaces --except-interface=lo "
-                              "--interface=wlan0 --interface=wlan0_0 --interface=wlan0_1 "
+                              "--interface=wlan0 --interface=wlan0_0 --interface=wlan0_1 --interface=wlan0_2 "
                               "--dhcp-range=10.0.42.10,10.0.42.200", "wifi-dnsmasq.log")
         self.addCleanup(m.execute, f"kill {dnsmasq_pid}")
 
@@ -79,7 +87,7 @@ ssid=OpenNet""")
         self.wait_for_iface(self.iface, active=False)
 
         # Details column shows correct number of networks
-        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "4 networks")
         # Not connected to anything
         b.wait_not_present(f"tr[data-interface='{self.iface}'] .pf-m-success")
 
@@ -87,7 +95,7 @@ ssid=OpenNet""")
         b.wait_visible("#network-interface")
         self.wait_for_iface_setting("Status", "Inactive")
 
-        # detects our three wifis
+        # detects our four wifis
         b.wait_in_text("table[aria-label='Available networks'] tbody:first-of-type", "ZE WIFI!")
         b.wait_text("tr[data-ssid='ZE WIFI!'] th", "ZE WIFI!")
         self.assertEqual(b.get_pf_progress_value("tr[data-ssid='ZE WIFI!'] [data-label='Signal']"), 100)
@@ -104,6 +112,11 @@ ssid=OpenNet""")
         b.wait_visible("tr[data-ssid='OpenNet'] [data-label='Mode'] [aria-label='open']")
         b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
 
+        # Hidden network appears (SSID unknown) but has no Connect button
+        b.wait_in_text("table[aria-label='Available networks']", "(hidden network)")
+        b.wait_visible("tr[data-ssid=''] [data-label='Mode'] [aria-label='secured']")
+        b.wait_not_present("tr[data-ssid=''] button[aria-label='Connect']")
+
         # Connect to OpenNet
         b.click("tr[data-ssid='OpenNet'] button[aria-label='Connect']")
         b.wait_visible("tr[data-ssid='OpenNet'] button[aria-label='Disconnect']")
@@ -117,7 +130,7 @@ ssid=OpenNet""")
         # Overview shows connected network
         b.click("#network-interface nav a:contains('Networking')")
         b.wait_visible("#networking")
-        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "4 networks")
         b.wait_in_text(f"tr[data-interface='{self.iface}'] [data-label='Details'] .pf-v6-c-label.pf-m-success", "OpenNet")
         self.select_iface(self.iface)
 
@@ -135,7 +148,7 @@ ssid=OpenNet""")
         # Overview shows disconnected
         b.click("#network-interface nav a:contains('Networking')")
         b.wait_visible("#networking")
-        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "3 networks")
+        b.wait_text(f"tr[data-interface='{self.iface}'] [data-label='Details']", "4 networks")
         b.wait_not_present(f"tr[data-interface='{self.iface}'] .pf-v6-c-label.pf-m-success")
         self.select_iface(self.iface)
 
