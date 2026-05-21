@@ -1,5 +1,5 @@
-upstream_project_url: https://github.com/cockpit-project/cockpit
-issue_repository: https://github.com/cockpit-project/cockpit
+upstream_project_url: https://github.com/martinpitt/cockpit
+issue_repository: https://github.com/martinpitt/cockpit
 specfile_path: cockpit.spec
 actions:
   # create-archive does not work with multiple sources, so do the spec mangling ourselves
@@ -75,14 +75,6 @@ jobs:
   #     # big-endian
   #     - fedora-latest-stable-s390x
 
-  # for cross-project testing
-  - job: copr_build
-    trigger: commit
-    branch: "^main$"
-    owner: "@cockpit"
-    project: "main-builds"
-    preserve_project: True
-
     # testing changes to this:
     # 1. Create a personal COPR, and change owner/project below
     # 2. Make a temporary commit that:
@@ -98,8 +90,8 @@ jobs:
     # 6. Iterate (step 3.) and re-tag (step 4).
   - job: copr_build
     trigger: release
-    owner: "@cockpit"
-    project: "cockpit-preview"
+    owner: "martinpitt"
+    project: "test-fixes"
     preserve_project: True
     # Don't rebuild the tarball for official releases (https://github.com/packit/packit-service/issues/1505)
     actions: &official_release_actions
@@ -118,25 +110,10 @@ jobs:
           '
 
       fix-spec-file: ""
-  - job: propose_downstream
-    trigger: release
-    actions: *official_release_actions
-
-    dist_git_branches:
-      - fedora-development
-      - fedora-43
-      - fedora-44
 
   - job: koji_build
     trigger: commit
     dist_git_branches:
       - fedora-development
-      - fedora-43
-      - fedora-44
-
-  - job: bodhi_update
-    trigger: commit
-    dist_git_branches:
-      # rawhide updates are created automatically
       - fedora-43
       - fedora-44
